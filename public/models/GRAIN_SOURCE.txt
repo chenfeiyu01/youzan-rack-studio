@@ -1,0 +1,57 @@
+Cloth UV direction transfer
+
+The grain field in each *-simulation.json is four numbers per rest triangle:
+[u.x, u.y, u.z, valid]. U is an unoriented unit director in the rest-triangle
+plane. valid=0 records an uncertain seam/fold region and leaves its bending
+isotropic; no world-coordinate axis is used as a replacement.
+
+Source: displayed GLB TEXCOORD_0 derivatives dp/du, after exactly the same
+modelConfig transform as garments.js. Four interior samples per proxy face
+are matched to normalized source triangles using BVH distance and normals.
+Projected directors are averaged as dyads (u*u^T), which handles mirrored UVs.
+Coverage requires four samples, director coherence >=0.65 and distance <0.08
+model units. Only grain was added; original positions and triangles are kept.
+
+Short source GLB SHA256: 51f86195da9c38de1f97b897552a74e7f27fd386e0205e2cc8a72b08ecad403f
+Long source GLB SHA256: 52fa7797b364866ddf86d7085c171bc6f0b04b8ebb2f9b6e88d7187d99bf10f3
+
+This tracks the visible texture's U/V orientation. It is not a sewing-pattern
+measurement or a claim about manufactured warp/weft on the supplied model.
+The relative bending coefficients in SurfaceCloth/catalog are demo presets,
+not measured SI textile constants.
+The signed-dihedral constraint is a directional hinge-energy approximation,
+not a complete orthotropic shell constitutive law.
+
+Offline reproducibility and nearest-face records: task work/grain-bending-study
+export.mjs and transfer.py (Blender 5.2 + numpy/BVHTree). No runtime dependency
+or change to GLB display geometry/UVs. Source licenses remain applicable.
+
+Directional membrane update
+
+surface-strain.js now uses this same rest-tangent frame for two length
+constraints and normalized angular shear, with XPBD multipliers. Shear is
+decoupled from uniform extension. Rest triangles whose altitude/longest-edge
+ratio is <=1/20 retain their original distance constraints, as do faces with
+uncertain grain. All original adjacency/contact exclusion links are retained.
+This is a hybrid incremental model about the supplied draped rest shape, not a
+complete measured textile constitutive model or flat sewing-pattern simulation.
+
+Reference: Muller et al., Strain Based Dynamics (2014), sections 3.3-3.5:
+https://matthias-research.github.io/pages/publications/strainBasedDynamics.pdf
+
+Long-sleeve display embedding update
+
+The long-sleeve display mesh now clips each original cloth triangle to the
+same 16x24x8 Freudenthal lattice used by the shared flow field. Its source
+vertices, UVs, shading normals and cavity values are retained; new records
+interpolate the original face. Hanger geometry and simulation JSON are kept.
+The grain-source hash above identifies the original unsplit surface used for
+dp/du transfer; planar barycentric subdivision preserves that UV direction.
+Current embedded long-sleeve GLB SHA256: bdd4d94b774391cd84cd925edfbe2796f206f13cf04f7850d60a15cc0968ecb3
+
+The long-sleeve display field uses a local signed-volume barrier (minimum
+relative cell volume .04) after the same three scaling-and-squaring steps.
+This is a display-mapping safeguard, not a measured textile constitutive law.
+The small long-sleeve lattice is prepared on the CPU and uploaded directly;
+short sleeves retain the existing GPU field preparation.
+Reproducibility and audits: task work/patch-light-study.

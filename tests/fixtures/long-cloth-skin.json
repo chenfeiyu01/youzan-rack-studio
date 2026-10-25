@@ -1,0 +1,791 @@
+{
+  "scope": "Locally separated elbow inner layer using UV-matched outer orientation, 11 aligned authored quads and refined inner-tip clearances. Accepted outer/trim/hanger draw geometry protected, cavity rebaked, exact cage clipping and convex-verified skin exits.",
+  "meshes": {
+    "Fabric": {
+      "matrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "attributes": {
+        "position": {
+          "count": 67378,
+          "itemSize": 3,
+          "sha256": "844b915445bc0e52176b2f1e12bf85bbbbb1c8e682012a2244f96c6c18f0705d"
+        },
+        "normal": {
+          "count": 67378,
+          "itemSize": 3,
+          "sha256": "41b098239ca355f2a402d9e0f8f2a7aca422f147d45db9f7dd4f287ad001eea7"
+        },
+        "uv": {
+          "count": 67378,
+          "itemSize": 2,
+          "sha256": "23e9db98920f83d65fd0180ac0ac344655d94125dc52d452c28682bb630261ae"
+        },
+        "color": {
+          "count": 67378,
+          "itemSize": 4,
+          "sha256": "bee00a305d05bdac8a0b72d2e01b5aa7ba439392eec813ec3d31bbc5339a1bcc"
+        }
+      },
+      "index": {
+        "count": 397950,
+        "sha256": "91158ae3977deb990f2bb1ae95d4c96285708766c9e40ebbba6f0fa0858e5734"
+      }
+    },
+    "Fabric_Inner": {
+      "matrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "attributes": {
+        "position": {
+          "count": 66729,
+          "itemSize": 3,
+          "sha256": "03fe76cb7b4e43add778e6bcab3b3593171f9753830e8ee0dadbcf81a062d076"
+        },
+        "normal": {
+          "count": 66729,
+          "itemSize": 3,
+          "sha256": "093a5731755f5752563a8ce368b238a6bdf312a6382b65be85bf59eb1f7c763d"
+        },
+        "uv": {
+          "count": 66729,
+          "itemSize": 2,
+          "sha256": "b322969415618187f2dc01ed6b6babebc9425917ea9d5b75fa9d29526987b55c"
+        },
+        "color": {
+          "count": 66729,
+          "itemSize": 4,
+          "sha256": "8dbafe4bbaf6f86f1185f089ef7a60692a7a5851be4497fe4bf8cf3a17783814"
+        }
+      },
+      "index": {
+        "count": 395232,
+        "sha256": "0c93f4a1d0c19b21dc521e80e6f6c70361d586b7c52f23b5f0639f51fdd4ab4e"
+      }
+    },
+    "Fabric_Trim": {
+      "matrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "attributes": {
+        "position": {
+          "count": 8336,
+          "itemSize": 3,
+          "sha256": "ff02e1991c438c2c5b4296af3ebe125bcc6beb7aac043967e3baa6567bef49b4"
+        },
+        "normal": {
+          "count": 8336,
+          "itemSize": 3,
+          "sha256": "4711527559f31dec751df18dec006a621e8360d1bd836a97c4c427a506bf19f6"
+        },
+        "uv": {
+          "count": 8336,
+          "itemSize": 2,
+          "sha256": "64911aca6932c40b87e989f1aee451e9b26e2069297603119d6fab62282eef71"
+        },
+        "color": {
+          "count": 8336,
+          "itemSize": 4,
+          "sha256": "d223f7a1383a667a2dd92ccee35b9f8776a7242926c9b1eac52a1c6c9bb370de"
+        }
+      },
+      "index": {
+        "count": 47532,
+        "sha256": "91d25017ba66dbc985be44aa0c87d456c5f03aef72873db2aa01523846aac5df"
+      }
+    },
+    "Hanger_Metal": {
+      "matrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "attributes": {
+        "position": {
+          "count": 792,
+          "itemSize": 3,
+          "sha256": "36848b03a19c75403f2ab535f6d7ebad6e183dd33c6ef499a819b8a1b63161fd"
+        },
+        "normal": {
+          "count": 792,
+          "itemSize": 3,
+          "sha256": "9a4e78bc70fdedb5a975b02255435c63b5d95bc552ef1558c0cafc0272c49eba"
+        },
+        "uv": {
+          "count": 792,
+          "itemSize": 2,
+          "sha256": "2adaa3b419c20260f402efc9b95c5008704d005d71be71107bdeba071875ae99"
+        }
+      },
+      "index": {
+        "count": 4284,
+        "sha256": "c8ea54d1e7ef1cc1c9acf1dc20836e161c1033aadc786630a38c147c397e66d2"
+      }
+    },
+    "Hanger_Wood": {
+      "matrix": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "attributes": {
+        "position": {
+          "count": 2239,
+          "itemSize": 3,
+          "sha256": "50a5c17ab07aab2ab9717b3f7f5a605876f52af65dbd2d491936b82430ed32ea"
+        },
+        "normal": {
+          "count": 2239,
+          "itemSize": 3,
+          "sha256": "8efaa3042e5ac4b83141fc6f5106b0d6f66fa7b899f087c81d78136e26ddfb5c"
+        },
+        "uv": {
+          "count": 2239,
+          "itemSize": 2,
+          "sha256": "7f80254a5610cadf96b3ab55625e7cd55c5b56fbf0183d70f07c5ecba5bc639b"
+        }
+      },
+      "index": {
+        "count": 11808,
+        "sha256": "45ac38f1e5822205e9b9c6e4a33679ce686e8f6c870a7a2a4816202417b5e132"
+      }
+    }
+  },
+  "hangerNormalized": {
+    "Hanger_Metal": {
+      "attributes": {
+        "position": {
+          "count": 792,
+          "itemSize": 3,
+          "sha256": "36848b03a19c75403f2ab535f6d7ebad6e183dd33c6ef499a819b8a1b63161fd"
+        },
+        "uv": {
+          "count": 792,
+          "itemSize": 2,
+          "sha256": "2adaa3b419c20260f402efc9b95c5008704d005d71be71107bdeba071875ae99"
+        }
+      },
+      "index": {
+        "count": 4284,
+        "sha256": "c8ea54d1e7ef1cc1c9acf1dc20836e161c1033aadc786630a38c147c397e66d2"
+      }
+    },
+    "Hanger_Wood": {
+      "attributes": {
+        "position": {
+          "count": 2239,
+          "itemSize": 3,
+          "sha256": "50a5c17ab07aab2ab9717b3f7f5a605876f52af65dbd2d491936b82430ed32ea"
+        },
+        "uv": {
+          "count": 2239,
+          "itemSize": 2,
+          "sha256": "7f80254a5610cadf96b3ab55625e7cd55c5b56fbf0183d70f07c5ecba5bc639b"
+        }
+      },
+      "index": {
+        "count": 11808,
+        "sha256": "45ac38f1e5822205e9b9c6e4a33679ce686e8f6c870a7a2a4816202417b5e132"
+      }
+    }
+  },
+  "pairs": {
+    "Fabric": {
+      "count": 67378,
+      "valid": 67030,
+      "unmatched": 348,
+      "maximumDistance": 0.015
+    },
+    "Fabric_Inner": {
+      "count": 66729,
+      "valid": 66729,
+      "unmatched": 0,
+      "maximumDistance": 0.015
+    }
+  },
+  "endpoints": [
+    {
+      "mesh": "Fabric",
+      "vertex": 0,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        1445,
+        2,
+        19367
+      ],
+      "expectedEndpoint": [
+        0.26409956812573354,
+        0.8111278415039369,
+        0.01945164505209951
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 4468,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        4519,
+        4468,
+        4138
+      ],
+      "expectedEndpoint": [
+        -0.3745794050928234,
+        -0.6010317173197607,
+        0.13245565307795526
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 8937,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        8936,
+        8969,
+        8937
+      ],
+      "expectedEndpoint": [
+        0.18632376160119696,
+        -0.07217177003606047,
+        0.01734251337605763
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 13543,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        13645,
+        13403,
+        13402
+      ],
+      "expectedEndpoint": [
+        -0.2243633270263672,
+        0.49934661388397217,
+        -0.09396042674779892
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 18151,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        17870,
+        17871,
+        63157
+      ],
+      "expectedEndpoint": [
+        0.9736399054527283,
+        -1.0673471689224243,
+        -0.021504705771803856
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 22691,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        1412,
+        22360,
+        22361
+      ],
+      "expectedEndpoint": [
+        -0.7192117899662361,
+        0.31348226522791134,
+        -0.08907749770511558
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 27159,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        3519,
+        26768,
+        3201
+      ],
+      "expectedEndpoint": [
+        -0.0245793309982937,
+        -0.807937484223024,
+        0.09374673463941802
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 31628,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        4998,
+        31205,
+        31210
+      ],
+      "expectedEndpoint": [
+        -0.02885817753396156,
+        -0.6558304432850386,
+        -0.07390974931196997
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 36096,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        36261,
+        6768,
+        35636
+      ],
+      "expectedEndpoint": [
+        0.272338742561942,
+        -0.5883624427107569,
+        0.1109166390131738
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 40565,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        8487,
+        40063,
+        40060
+      ],
+      "expectedEndpoint": [
+        0.6363117818945236,
+        0.21706953539272805,
+        0.027736974126067973
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 45034,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        44515,
+        10402,
+        10074
+      ],
+      "expectedEndpoint": [
+        0.6797169300686818,
+        0.32822316900909954,
+        -0.0646381978280242
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 49502,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        48955,
+        12144,
+        48956
+      ],
+      "expectedEndpoint": [
+        -0.25398287559540617,
+        -0.7790510033065687,
+        -0.18304210485791655
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 53971,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        53462,
+        53464,
+        53466
+      ],
+      "expectedEndpoint": [
+        0.7195067300573474,
+        -0.5077807957410834,
+        -0.00972625270970778
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 58439,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        57922,
+        15528,
+        57494
+      ],
+      "expectedEndpoint": [
+        0.21955734552571982,
+        0.2786722511658446,
+        -0.08947596152749977
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 62908,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        62361,
+        17332,
+        62049
+      ],
+      "expectedEndpoint": [
+        0.8195232642258354,
+        -0.8073181519722966,
+        -0.07931489291921179
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric",
+      "vertex": 67377,
+      "peer": "Fabric_Inner",
+      "triangle": [
+        19361,
+        66728,
+        66707
+      ],
+      "expectedEndpoint": [
+        -0.8840972781516172,
+        -1.016957997963765,
+        0.01838111851812571
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 0,
+      "peer": "Fabric",
+      "triangle": [
+        1584,
+        19728,
+        2
+      ],
+      "expectedEndpoint": [
+        0.28011807872945915,
+        0.8149006498525947,
+        0.02328496427029885
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 4448,
+      "peer": "Fabric",
+      "triangle": [
+        30126,
+        4179,
+        4448
+      ],
+      "expectedEndpoint": [
+        -0.04697051606312815,
+        -0.6782431002771095,
+        -0.049217366110123
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 8897,
+      "peer": "Fabric",
+      "triangle": [
+        8897,
+        41731,
+        41732
+      ],
+      "expectedEndpoint": [
+        -0.11760921104578889,
+        -0.03672023562632811,
+        0.11672171250560523
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 13345,
+      "peer": "Fabric",
+      "triangle": [
+        13485,
+        13484,
+        13735
+      ],
+      "expectedEndpoint": [
+        0.7338800868725536,
+        -0.4013342227032804,
+        -0.14994459696845644
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 17794,
+      "peer": "Fabric",
+      "triangle": [
+        63637,
+        18074,
+        63643
+      ],
+      "expectedEndpoint": [
+        0.9918561013055027,
+        -1.2360514401807712,
+        -0.024878916895867992
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 22242,
+      "peer": "Fabric",
+      "triangle": [
+        22577,
+        1375,
+        22579
+      ],
+      "expectedEndpoint": [
+        0.7255992890817828,
+        0.5627292985588335,
+        -0.0761982009093126
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 26691,
+      "peer": "Fabric",
+      "triangle": [
+        27076,
+        3165,
+        27843
+      ],
+      "expectedEndpoint": [
+        0.7944545138617132,
+        0.8107420193752968,
+        -0.03190245113382029
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 31139,
+      "peer": "Fabric",
+      "triangle": [
+        4711,
+        30840,
+        31560
+      ],
+      "expectedEndpoint": [
+        -0.5548128616990945,
+        0.7717934846482714,
+        0.019665527996720916
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 35588,
+      "peer": "Fabric",
+      "triangle": [
+        36051,
+        36053,
+        36054
+      ],
+      "expectedEndpoint": [
+        -0.6193919384215709,
+        0.22272468703075976,
+        0.05485715761716125
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 40036,
+      "peer": "Fabric",
+      "triangle": [
+        40534,
+        40536,
+        40537
+      ],
+      "expectedEndpoint": [
+        -0.44464327953738725,
+        0.21748387779496145,
+        0.062370300554229596
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 44485,
+      "peer": "Fabric",
+      "triangle": [
+        45008,
+        10531,
+        45791
+      ],
+      "expectedEndpoint": [
+        -0.3418142100783631,
+        -0.6892115341957632,
+        -0.12403792976878401
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 48933,
+      "peer": "Fabric",
+      "triangle": [
+        12388,
+        49480,
+        12375
+      ],
+      "expectedEndpoint": [
+        -0.7163674840255311,
+        -0.420406519894546,
+        -0.18642515934618567
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 53382,
+      "peer": "Fabric",
+      "triangle": [
+        14117,
+        53883,
+        53885
+      ],
+      "expectedEndpoint": [
+        0.27297069332541674,
+        -0.9277412305071938,
+        -0.12886461998932527
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 57830,
+      "peer": "Fabric",
+      "triangle": [
+        15907,
+        58720,
+        58342
+      ],
+      "expectedEndpoint": [
+        -0.2165660992227816,
+        -0.3368345200546969,
+        -0.15478310003189694
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 62279,
+      "peer": "Fabric",
+      "triangle": [
+        17714,
+        62676,
+        62843
+      ],
+      "expectedEndpoint": [
+        0.8891760737516462,
+        -1.2707973724896588,
+        -0.0058342013710310095
+      ],
+      "maxDistance": 2e-06
+    },
+    {
+      "mesh": "Fabric_Inner",
+      "vertex": 66728,
+      "peer": "Fabric",
+      "triangle": [
+        67363,
+        19684,
+        67377
+      ],
+      "expectedEndpoint": [
+        -0.8841875812027891,
+        -1.016469357694956,
+        0.0142580646634619
+      ],
+      "maxDistance": 2e-06
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "attributes": {
+    "position": {
+      "count": 93534,
+      "itemSize": 3,
+      "sha256": "f68106565a0631916bfd2f480add629b0654abe10d3bbc4183f1eb76ad652c90"
+    },
+    "normal": {
+      "count": 93534,
+      "itemSize": 3,
+      "sha256": "3b869d560b305003be2a5193800e0e357e3f827b0cd062472c7f93cfeb15af8b"
+    },
+    "uv": {
+      "count": 93534,
+      "itemSize": 2,
+      "sha256": "02f6f1b77d437af0a1fe7f7494d8fc832593d8f1f13370b986aec1a239becf90"
+    },
+    "color": {
+      "count": 93534,
+      "itemSize": 4,
+      "sha256": "0951569fc79dde2d2685b85dc967f6e6b69241abcb52826c0d228f7e8a344dac"
+    }
+  },
+  "faceCount": 133560,
+  "sourceSha256": "0bafb71b1e051e4d7e32085abaa95040e0c6aa84a760411791fbfb5d189d2822",
+  "orientedFaceMultisetSha256": "ec6cb7e381f86a55b50f062af15a031023180f4d8801af8c1902ce704b740b33"
+}

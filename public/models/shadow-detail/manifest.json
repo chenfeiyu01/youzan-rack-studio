@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "models": {
+    "shortSleeve": {
+      "sha256": "b54e628f756561f41596b88419291ad1d186d12674420f956ebd2242f321276b",
+      "meshes": {
+        "Fabric": {
+          "file": "shortSleeve-fabric-lod.bin",
+          "vertexCount": 58122,
+          "fullIndexCount": 339693,
+          "indexCount": 110349,
+          "sha256": "eeb8b2d7d992885360ac3e1122f976ceeb4951ebf6cc1beec4f0d7cdf242eb08",
+          "error": 0.000789772835560143,
+          "locked": 10378,
+          "passes": [
+            {
+              "faces": 36743,
+              "badPoints": 2,
+              "addedLocks": 37
+            },
+            {
+              "faces": 36783,
+              "badPoints": 0
+            }
+          ]
+        }
+      }
+    },
+    "longSleeve": {
+      "sha256": "c56b2b73dbfac171a3318afc31658ef65a7de6e07155da582b13e518c5d54ca4",
+      "meshes": {
+        "Fabric": {
+          "file": "longSleeve-fabric-lod.bin",
+          "vertexCount": 67378,
+          "fullIndexCount": 397950,
+          "indexCount": 106146,
+          "sha256": "1853a1a6dfd120235cfd2bf6db4df95da4d46d05bb58cb0892a8569f5224f05b",
+          "error": 0.000797539425548166,
+          "locked": 7197,
+          "passes": [
+            {
+              "faces": 35382,
+              "badPoints": 0
+            }
+          ]
+        },
+        "Fabric_Inner": {
+          "file": "longSleeve-fabric_inner-lod.bin",
+          "vertexCount": 66729,
+          "fullIndexCount": 395232,
+          "indexCount": 105378,
+          "sha256": "51d08190cfb78a084cb926db8d86ea42b0f7c4dbe0238f845785765862940cb5",
+          "error": 0.0007979698712006211,
+          "locked": 6834,
+          "passes": [
+            {
+              "faces": 35126,
+              "badPoints": 0
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "short-sleeve-simulation.json": {
+    "positions": "0d13d0a6cc9184afa693f03a47839747b62e4e7270a92120caf007247870e79f",
+    "triangles": "b387ff766d6fe0b1467e9b1e04c95216ed2b09a208dab5ebd3b45e6d86897688"
+  },
+  "hanging-long-sleeve-simulation.json": {
+    "positions": "756543c90aa77b6ab27057dbbe4ab6418f45b871c8fb01e413c100bb1695ef2c",
+    "triangles": "2614c1e542e53c795e16b478e7150e88633942f759631a2da009ea5d17034a63"
+  }
+}

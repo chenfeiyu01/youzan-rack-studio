@@ -1,0 +1,26 @@
+Cotton Jersey — Poly Haven
+https://polyhaven.com/a/cotton_jersey
+Photographed by colormass; processed by Rico Cilliers.
+License: CC0 https://polyhaven.com/license
+
+Web maps derive from the 2K OpenGL normal, roughness and diffuse JPEG scans (2048×2050).
+Original downloads and their API MD5 values are retained in the task's work/fabric-study/.
+API dimensions: 263.6027 × 263.8000 mm. The 1K density of 38.8 px/cm independently agrees
+with about 26.4 cm per tile; the public page's 0.3 m height is rounded.
+The app uses 0.2638 m for the physical repeat calibration, fitting the
+rest-surface-area-weighted median of local mesh-to-UV area scales. Tiny distorted
+UV islands no longer set the weave density of the whole garment. Valid trim UVs
+may require a repeat far below 0.5; repeat is not clamped to an arbitrary range.
+UV orientation and local anisotropic stretching remain authored by the model.
+
+Processing for the web:
+- A 0.45-pixel prefilter removes detail below about 0.06 mm at this scale.
+- Normal vectors are renormalized after the prefilter; OpenGL orientation is retained.
+- Diffuse beige dye is neutralized offline with the previous runtime formula:
+  clamp(249 + 0.65 × (luminance - mean luminance), 232, 255).
+- The resulting grayscale albedo retains yarn variation without recoloring the chosen dye.
+- JPEG quality: normal 95 (4:4:4), roughness 93, albedo 95. Total web maps: 5,072,813 bytes.
+
+The fiber sheen tint follows the square-root-of-linear-base-color convention discussed in:
+https://google.github.io/filament/main/materials.html#materialmodels/clothmodel
+This is an appearance approximation, not a measured calibration of the catalog garments.

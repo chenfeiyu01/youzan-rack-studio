@@ -1,0 +1,10 @@
+{
+  "short-sleeve": {
+    "count": 7788,
+    "sha256": "1b04e08348d315567eb5256c5e12b8e3e8b6fc250ccaaf42fff7abcaad1f9f3c"
+  },
+  "hanging-long-sleeve": {
+    "count": 6008,
+    "sha256": "0f707c60b6717c80bd0ed63744f62101524452c6cd4f17198748e1236e5e8419"
+  }
+}

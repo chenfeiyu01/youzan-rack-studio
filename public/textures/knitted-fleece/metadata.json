@@ -1,0 +1,59 @@
+{
+  "asset": "knitted_fleece",
+  "dimensionsMm": [
+    266.35669526830077,
+    270.3999876976013
+  ],
+  "patchMetres": 0.26837072702461845,
+  "repeatAspect": [
+    1.0075614084124636,
+    0.9924953374064045
+  ],
+  "mapDimensions": [
+    1024,
+    1040
+  ],
+  "albedoMeanLinear": 0.4968519232408443,
+  "legacyAlbedoMeanLinear": 0.9471275586463885,
+  "colorGain": 1.9062572053027504,
+  "linearWhitePoint": 0.15562722086906433,
+  "normalPrefilterPixels": 0.35,
+  "maps": {
+    "albedo-1k.jpg": {
+      "bytes": 668406,
+      "dimensions": [
+        1024,
+        1040
+      ],
+      "mean": [
+        183.3111600435697
+      ],
+      "sha256": "048db34fbe4f1157033d76e7570856cec7342fb31a247d798779b52139cf897c"
+    },
+    "normal-1k.jpg": {
+      "bytes": 1021239,
+      "dimensions": [
+        1024,
+        1040
+      ],
+      "mean": [
+        127.1332266000601,
+        126.97444317157452,
+        252.62578031099758
+      ],
+      "sha256": "6247d26eed74e3accd7831e6308fb2e8eb0e7855099307a392b7ce6a3243611f"
+    },
+    "roughness-1k.jpg": {
+      "bytes": 511992,
+      "dimensions": [
+        1024,
+        1040
+      ],
+      "mean": [
+        158.94343449519232
+      ],
+      "sha256": "a0c09567479e3237b8882a9b2b66aa2658e6c7504c8dd00d4abf8753276a6aa2"
+    }
+  },
+  "bytes": 2201637
+}

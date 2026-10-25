@@ -1,0 +1,59 @@
+{
+  "asset": "jersey_melange",
+  "dimensionsMm": [
+    290.62397202303356,
+    276.19999647140503
+  ],
+  "patchMetres": 0.2833202076225196,
+  "repeatAspect": [
+    0.9748686787615196,
+    1.0257791862493804
+  ],
+  "mapDimensions": [
+    1024,
+    973
+  ],
+  "albedoMeanLinear": 0.4467840883211147,
+  "legacyAlbedoMeanLinear": 0.9471275586463885,
+  "colorGain": 2.119877550262409,
+  "linearWhitePoint": 0.5518097877502441,
+  "normalPrefilterPixels": 0.35,
+  "maps": {
+    "albedo-1k.jpg": {
+      "bytes": 630683,
+      "dimensions": [
+        1024,
+        973
+      ],
+      "mean": [
+        173.81312929567062
+      ],
+      "sha256": "c39aaa06e87dc031ba44fa22bc2092896c1cb6eb673272812fa39007a5593c9e"
+    },
+    "normal-1k.jpg": {
+      "bytes": 859825,
+      "dimensions": [
+        1024,
+        973
+      ],
+      "mean": [
+        127.26128316097122,
+        127.18648529836845,
+        253.0189250385406
+      ],
+      "sha256": "9d5d95f6fdcc907ce6ef642528c1bbfc0b425fde71b809d0086647daa0fb80c8"
+    },
+    "roughness-1k.jpg": {
+      "bytes": 508302,
+      "dimensions": [
+        1024,
+        973
+      ],
+      "mean": [
+        142.51575848696044
+      ],
+      "sha256": "db8963823ccd5eed730744b1f350e07654fcd563112923c02f15b9f8006263f2"
+    }
+  },
+  "bytes": 1998810
+}

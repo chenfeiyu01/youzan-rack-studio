@@ -1,0 +1,17 @@
+jersey_melange - Poly Haven
+https://polyhaven.com/a/jersey_melange
+Photography: colormass. Processing: Rico Cilliers.
+CC0: https://polyhaven.com/license
+
+Derived from verified API 1K Diffuse, OpenGL normal and Rough JPEG maps.
+Source patch dimensions: 290.6239720 x 276.1999965 mm.
+Normal: .35 pixel prefilter, unit-vector reconstruction, JPEG96 4:4:4.
+Roughness: .35 pixel prefilter, JPEG93 grayscale.
+Albedo: linear luminance neutralization, 99.9 percentile white point, sRGB JPEG94.
+Runtime tint gain 2.119877550262 preserves the legacy scan's mean linear
+albedo under the selected dye. Tint is bounded to keep reflectance <= 1.
+The full source aspect ratio is retained in texture repeats.
+
+These are appearance presets using real scans, not measurements of the catalog
+garments. API metadata, original MD5 checks and derivation are retained in
+work/fabric-family-study. No external asset requests are needed at runtime.
