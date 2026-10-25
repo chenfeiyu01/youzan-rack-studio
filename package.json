@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "npm run build:physics && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js",
-    "build:shadows": "node scripts/build-shadow-detail.mjs"
+    "build:shadows": "node scripts/build-shadow-detail.mjs",
+    "build:physics": "asc scripts/contact-kernel.ts --outFile src/contact-kernel.wasm -O3 --runtime stub --noAssert --initialMemory 1 --maximumMemory 128"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -16,6 +17,7 @@
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "assemblyscript": "0.28.20",
     "vite": "^7.1.0"
   }
 }

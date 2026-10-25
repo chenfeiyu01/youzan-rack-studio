@@ -1,7 +1,7 @@
 // Supplied brand artwork stays untouched on disk. Remove the image matte only
 // for compositing the ink onto fabric; the white thumb inside the red disc stays.
 const assets=new Map();
-const urls={wordmark:'youzan-wordmark.png',round:'youzan-round.png',mascot:'youzan-mascot.png'};
+const urls={wordmark:'youzan-wordmark.svg',round:'youzan-round.svg',mascot:'youzan-mascot.png'};
 function removeMatte(canvas,key) {
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   const image=ctx.getImageData(0,0,canvas.width,canvas.height),d=image.data,w=canvas.width,h=canvas.height;
@@ -31,7 +31,17 @@ export async function preloadBrandAssets() {
   await Promise.all(Object.entries(urls).map(async([key,file])=>{
     const response=await fetch(import.meta.env.BASE_URL+'brand/'+file);
     if(!response.ok)throw new Error('品牌图片加载失败');
-    const bitmap=await createImageBitmap(await response.blob(),key==='mascot'?{resizeWidth:1400,resizeQuality:'high'}:{});
+    const blob=await response.blob();
+    if(file.endsWith('.svg')){
+      const url=URL.createObjectURL(blob),image=new Image();
+      try{
+        image.src=url;await image.decode();
+        const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=Math.round(2048*image.naturalHeight/image.naturalWidth);
+        canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);assets.set(key,canvas);
+      }finally{URL.revokeObjectURL(url);}
+      return;
+    }
+    const bitmap=await createImageBitmap(blob,key==='mascot'?{resizeWidth:2048,resizeQuality:'high'}:{});
     const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;
     canvas.getContext('2d').drawImage(bitmap,0,0);bitmap.close();assets.set(key,removeMatte(canvas,key));
   }));

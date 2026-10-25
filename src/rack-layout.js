@@ -6,6 +6,12 @@ export function garmentRackX(index,count,chosen=null){
   return(index-(count-1)/2)*.73+(chosen==null?0:Math.sign(index-chosen)*.66);
 }
 
+// Blend one open slot between garments. The total allowance never grows during
+// handoff, so unrelated hangers do not move out and back as the old item closes.
+export function garmentRackPositions(count,space=[]){
+  return Array.from({length:count},(_,index)=>garmentRackX(index,count)+.66*space.reduce((offset,weight,slot)=>offset+Math.sign(index-slot)*weight,0));
+}
+
 export function rackCameraX(selectedX,focus,mobile){
   return selectedX*(mobile?1:focus);
 }

@@ -59,3 +59,13 @@ test('paused time does not create acceleration and reduced motion still snaps to
  motion.step(2,.7,Math.PI,0,true,1.94);assert.equal(motion.x.value,2);assert.equal(motion.y.value,1.94);assert.equal(motion.z.value,.7);assert.equal(motion.yaw.value,Math.PI);assert.equal(motion.roll.value,0);assert.equal(motion.pitch.value,0);
  for(const k of['x','y','z','yaw','roll','pitch'])assert.equal(motion[k].velocity,0);
 });
+
+
+test('guided rack spacing does not create a physical roll impulse while real rail slides retain it',()=>{
+ const layout=new HangingMotion(0,-1.43),physical=new HangingMotion(0,-1.43);let realRoll=0;
+ for(let frame=0;frame<90;frame++){
+  const x=Math.sin(frame*.3)*1.1;layout.step(x,0,-1.43,1/60,false,1.56,true,true);physical.step(x,0,-1.43,1/60,false,1.56);
+  assert.equal(layout.roll.value,0);assert.equal(layout.roll.velocity,0);realRoll=Math.max(realRoll,Math.abs(physical.roll.value));
+ }
+ assert.ok(realRoll>.001,'physical slide inertia must remain');
+});

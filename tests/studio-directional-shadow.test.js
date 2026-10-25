@@ -19,7 +19,7 @@ test('secondary angular softness stays in world units as the shadow window chang
 });
 test('secondary directional shadows preserve source lighting and include casters behind the displayed light position',()=>{
  const scene=new T.Scene(),s=makeStudio(scene);try{
-  assert.equal(s.key.intensity,0);assert.equal(s.softbox.intensity,7.4);assert.equal(s.secondaryLights.length,2);assert.deepEqual(s.secondaryLights.map(l=>l.intensity),[.7,1.8]);assert.deepEqual(s.secondaryLights.map(l=>l.position.toArray()),[[4,1.5,5],[-3,2,-.4]]);
+  assert.equal(s.key.intensity,0);assert.equal(s.softbox.intensity,7.0);assert.equal(s.secondaryLights.length,2);assert.deepEqual(s.secondaryLights.map(l=>l.intensity),[.55,.8]);assert.deepEqual(s.secondaryLights.map(l=>l.position.toArray()),[[4,1.5,5],[-3,2,-.4]]);
   for(const l of s.secondaryLights){assert.ok(l.castShadow);assert.ok(l.shadow instanceof StudioDirectionalShadow);assert.equal(l.shadow.mapSize.x,1024);const before=l.position.clone(),target=l.target.position.clone();l.shadow.frame(new T.Vector3(),false);l.shadow.updateMatrices(l);assert.ok(l.position.equals(before)&&l.target.position.equals(target));const axis=l.position.clone().sub(l.target.position).normalize(),forward=l.shadow.camera.getWorldDirection(new T.Vector3());assert.ok(forward.dot(axis)<-1+1e-12);assert.ok(Math.abs(l.shadow.camera.position.length()-24)<1e-12);}
   const rim=s.secondaryLights[1],p=new T.Vector3(-4.5,1.7,.1);assert.ok(p.clone().sub(rim.position).dot(rim.position.clone().normalize())>0,'the test caster is behind the displayed rim light');assert.ok(rim.shadow.getFrustum().containsPoint(p));
  }finally{dispose(scene);}

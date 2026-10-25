@@ -4,8 +4,8 @@ export const MODEL_METRES=.283;
 // The rack, selection, and focus transitions do not depend on garment geometry.
 export const modelConfig = {
   shortSleeve: {
-    url: '/models/short-sleeve-gravity.glb',
-    simulation:'/models/short-sleeve-gravity-simulation.json',
+    url: '/models/short-sleeve-clean.glb',
+    simulation:'/models/short-sleeve-clean-simulation.json',
     height: 2.48,
     top: .98,
     widthScale: 1,

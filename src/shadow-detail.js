@@ -32,8 +32,9 @@ export function restoreShadowDetail(garments){let changed=false;for(const g of g
 export function installShadowDetailPass(renderer,garments){
  const before=renderer.shadowMap.render,details=garments.map(g=>g.userData.shadowDetail).filter(Boolean);
  renderer.shadowMap.render=function(...args){
-  try{for(const d of details)if(d.low)for(const m of d.meshes)m.mesh.geometry=m.low;return before.apply(this,args);}
-  finally{for(const d of details)for(const m of d.meshes)m.mesh.geometry=m.full;}
+  const originals=[];
+  try{for(const d of details)if(d.low)for(const m of d.meshes){originals.push([m.mesh,m.mesh.geometry]);m.mesh.geometry=m.low;}return before.apply(this,args);}
+  finally{for(const[mesh,geometry]of originals)mesh.geometry=geometry;}
  };
  return()=>{renderer.shadowMap.render=before;};
 }

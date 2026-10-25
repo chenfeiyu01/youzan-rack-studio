@@ -6,7 +6,7 @@ export function applyPrintResponse(shader,coverage='inkAlpha'){
   if(!shader.fragmentShader.includes('#include <lights_physical_fragment>'))return;
   shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
     roughnessFactor=mix(roughnessFactor,.72,${coverage});`);
-  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',ShaderChunk.normal_fragment_maps.replace('mapN.xy *= normalScale;',`mapN.xy *= normalScale*mix(1.,.50,${coverage});`));
+  shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',ShaderChunk.normal_fragment_maps.replace('mapN.xy *= normalScale;',`mapN.xy *= normalScale*mix(1.,.25,${coverage});`));
   shader.fragmentShader=shader.fragmentShader.replace('#include <lights_physical_fragment>',`#include <lights_physical_fragment>
     material.specularColor=mix(material.specularColor,vec3(.04),${coverage});
     #ifdef STUDIO_CLOTH_TRANSMISSION

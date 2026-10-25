@@ -29,6 +29,11 @@ vec3 sampleFlowTet(vec3 p){
 vec3 flowMap(vec3 p){return p+sampleFlowTet(p);}
 
 `;
+// Endpoint composition cannot bind a history sampler that aliases its output.
+// Only the visible/depth material interpolates the two completed fields.
+const displayFlowSampling=flowSampling
+ .replace('uniform sampler2D uFlowGrid;','uniform sampler2D uFlowGrid;\nuniform sampler2D uPreviousFlowGrid;\nuniform float uFlowMix;')
+ .replace(' return texture2D(uFlowGrid,vec2(q.x+.5,q.y+q.z*uFlowDimensions.y+.5)/vec2(uFlowDimensions.x,uFlowDimensions.y*uFlowDimensions.z)).xyz;',' vec2 uv=vec2(q.x+.5,q.y+q.z*uFlowDimensions.y+.5)/vec2(uFlowDimensions.x,uFlowDimensions.y*uFlowDimensions.z);\n vec3 current=texture2D(uFlowGrid,uv).xyz;\n if(uFlowMix>=1.)return current;\n return mix(texture2D(uPreviousFlowGrid,uv).xyz,current,uFlowMix);');
 export function createGpuFlow(data,source){
  let shared=sharedCache.get(data);
  if(!shared){const layout=makeFlowLayout(data),n=layout.positions.length/3,width=1024,height=Math.ceil(n*12/width),coefficients=new Float32Array(width*height*4);for(let i=0;i<n*12;i++){coefficients[i*4]=layout.weights[i];coefficients[i*4+3]=layout.ids[i];}
@@ -36,7 +41,7 @@ export function createGpuFlow(data,source){
   shared={texture,width,height,dimensions:layout.dimensions,lo:layout.lo,hi:layout.hi,references:0};sharedCache.set(data,shared);
  }shared.references++;
  const [nx,ny,nz]=shared.dimensions,targets=[0,1].map(()=>new T.WebGLRenderTarget(nx,ny*nz,{type:T.FloatType,minFilter:T.NearestFilter,magFilter:T.NearestFilter,depthBuffer:false,stencilBuffer:false,generateMipmaps:false}));
- const uniforms={uFlowGrid:{value:targets[1].texture},uFlowDimensions:{value:new T.Vector3(nx,ny,nz)},uFlowLo:{value:new T.Vector3(...shared.lo)},uFlowHi:{value:new T.Vector3(...shared.hi)}};
+ const uniforms={uFlowGrid:{value:targets[1].texture},uPreviousFlowGrid:{value:targets[1].texture},uFlowMix:{value:1},uFlowDimensions:{value:new T.Vector3(nx,ny,nz)},uFlowLo:{value:new T.Vector3(...shared.lo)},uFlowHi:{value:new T.Vector3(...shared.hi)}};
  const vertexShader='void main(){gl_Position=vec4(position.xy,0.,1.);}';
  const bake=new T.ShaderMaterial({uniforms:{uCoefficients:{value:shared.texture},uCoefficientSize:{value:new T.Vector2(shared.width,shared.height)},uSource:{value:source},uSourceWidth:{value:source.image.width},...uniforms},vertexShader,fragmentShader:`
  uniform sampler2D uCoefficients;uniform vec2 uCoefficientSize;uniform sampler2D uSource;uniform float uSourceWidth;${flowSampling}
@@ -44,28 +49,40 @@ export function createGpuFlow(data,source){
  const square=new T.ShaderMaterial({uniforms,vertexShader,fragmentShader:`${flowSampling}
  void main(){vec2 pixel=floor(gl_FragCoord.xy);float index=pixel.y*uFlowDimensions.x+pixel.x;vec3 q=vec3(pixel.x,mod(pixel.y,uFlowDimensions.y),floor(pixel.y/uFlowDimensions.y));vec3 p=uFlowLo+q/(uFlowDimensions-1.)*(uFlowHi-uFlowLo);vec3 d=texture2D(uFlowGrid,gl_FragCoord.xy/vec2(uFlowDimensions.x,uFlowDimensions.y*uFlowDimensions.z)).xyz;gl_FragColor=vec4(d+sampleFlowGrid(p+d),1.);}`,depthTest:false,depthWrite:false,blending:T.NoBlending,toneMapped:false});
  const geometry=new T.PlaneGeometry(2,2),quad=new T.Mesh(geometry,bake),scene=new T.Scene(),camera=new T.Camera();quad.frustumCulled=false;scene.add(quad);
+ const copy=new T.ShaderMaterial({uniforms:{image:{value:targets[1].texture},size:{value:new T.Vector2(nx,ny*nz)}},vertexShader,fragmentShader:'uniform sampler2D image;uniform vec2 size;void main(){gl_FragColor=texture2D(image,gl_FragCoord.xy/size);}',depthTest:false,depthWrite:false,blending:T.NoBlending,toneMapped:false});
+ let previousTarget=null,previousFallback=null,history=false,token=-1;
  let version=-1,supported=null,reference=null,fallback=null;const enabled={value:0},viewport=new T.Vector4(),scissor=new T.Vector4();
  return{uniforms:{...uniforms,uFlowEnabled:enabled},targets,shared,
-  prepare(renderer){
+  prepare(renderer,alpha=1,frameToken=source.version){
    // Long sleeves project the small CPU lattice before upload; no GPU readback.
    if(supported===null){supported=data.type!=='longSleeve'&&renderer.extensions.has('EXT_color_buffer_float');enabled.value=1;}
-   if(version===source.version)return;
-   if(!supported){reference??=createFlowReference(data);const pixels=reference.update(source.image.data);if(!fallback){fallback=new T.DataTexture(new Float32Array(pixels.length),nx,ny*nz,T.RGBAFormat,T.FloatType);fallback.minFilter=fallback.magFilter=T.NearestFilter;fallback.generateMipmaps=false;}fallback.image.data.set(pixels);fallback.needsUpdate=true;uniforms.uFlowGrid.value=fallback;version=source.version;return;}
+   const blend=()=>{uniforms.uFlowMix.value=history?Math.max(0,Math.min(1,alpha)):1;};
+   if(version===source.version){if(token!==frameToken){history=false;token=frameToken;}blend();return;}
+   if(!supported){
+    reference??=createFlowReference(data);history=version>=0;
+    if(history){if(!previousFallback){previousFallback=new T.DataTexture(new Float32Array(fallback.image.data.length),nx,ny*nz,T.RGBAFormat,T.FloatType);previousFallback.minFilter=previousFallback.magFilter=T.NearestFilter;previousFallback.generateMipmaps=false;}previousFallback.image.data.set(fallback.image.data);previousFallback.needsUpdate=true;}
+    const pixels=reference.update(source.image.data);if(!fallback){fallback=new T.DataTexture(new Float32Array(pixels.length),nx,ny*nz,T.RGBAFormat,T.FloatType);fallback.minFilter=fallback.magFilter=T.NearestFilter;fallback.generateMipmaps=false;}
+    fallback.image.data.set(pixels);fallback.needsUpdate=true;uniforms.uFlowGrid.value=fallback;uniforms.uPreviousFlowGrid.value=history?previousFallback:fallback;version=source.version;token=frameToken;blend();return;
+   }
 
    const target=renderer.getRenderTarget(),face=renderer.getActiveCubeFace(),mip=renderer.getActiveMipmapLevel(),xr=renderer.xr.enabled,autoClear=renderer.autoClear,scissorTest=renderer.getScissorTest();renderer.getViewport(viewport);renderer.getScissor(scissor);
-   try{renderer.xr.enabled=false;renderer.autoClear=true;renderer.setScissorTest(false);quad.material=bake;renderer.setRenderTarget(targets[0]);renderer.render(scene,camera);
+   try{renderer.xr.enabled=false;renderer.autoClear=true;renderer.setScissorTest(false);
+    history=version>=0;
+    if(history){previousTarget??=new T.WebGLRenderTarget(nx,ny*nz,{type:T.FloatType,minFilter:T.NearestFilter,magFilter:T.NearestFilter,depthBuffer:false,stencilBuffer:false,generateMipmaps:false});quad.material=copy;renderer.setRenderTarget(previousTarget);renderer.render(scene,camera);}
+    // Compose each complete endpoint without sampling its display history.
+    uniforms.uFlowMix.value=1;quad.material=bake;renderer.setRenderTarget(targets[0]);renderer.render(scene,camera);
     for(let pass=0;pass<3;pass++){uniforms.uFlowGrid.value=targets[pass%2].texture;quad.material=square;renderer.setRenderTarget(targets[(pass+1)%2]);renderer.render(scene,camera);}
-    uniforms.uFlowGrid.value=targets[1].texture;version=source.version;
+    uniforms.uFlowGrid.value=targets[1].texture;uniforms.uPreviousFlowGrid.value=history?previousTarget.texture:targets[1].texture;version=source.version;token=frameToken;blend();
    }finally{renderer.setRenderTarget(target,face,mip);renderer.setViewport(viewport);renderer.setScissor(scissor);renderer.setScissorTest(scissorTest);renderer.autoClear=autoClear;renderer.xr.enabled=xr;}
   },
   get supported(){return supported;},
-  dispose(){fallback?.dispose();targets.forEach(t=>t.dispose());bake.dispose();square.dispose();geometry.dispose();if(--shared.references===0){shared.texture.dispose();sharedCache.delete(data);}},
+  dispose(){fallback?.dispose();previousFallback?.dispose();previousTarget?.dispose();copy.dispose();targets.forEach(t=>t.dispose());bake.dispose();square.dispose();geometry.dispose();if(--shared.references===0){shared.texture.dispose();sharedCache.delete(data);}},
  };
 }
 
 const shader=`
 uniform float uFlowEnabled;
-${flowSampling}
+${displayFlowSampling}
 void sampleFlowCloth(vec3 p){
  // Symmetric probes filter the coarse tetrahedral derivative for shading.
  // Include the normal-axis derivative so local twist and 3D shear both follow.
@@ -79,10 +96,10 @@ void sampleFlowCloth(vec3 p){
 `;
 export function withSurfaceFlow(rig,data){
  const flow=createGpuFlow(data,rig.texture),bind=rig.bind,dispose=rig.dispose;
- rig.flow=flow;rig.prepare=renderer=>flow.prepare(renderer);
+ rig.flow=flow;rig.prepare=(renderer,alpha,token)=>flow.prepare(renderer,alpha,token);
  rig.bind=mesh=>{bind(mesh);for(const material of [...(Array.isArray(mesh.material)?mesh.material:[mesh.material]),mesh.customDepthMaterial]){
   const before=material.onBeforeCompile,key=material.customProgramCacheKey;
   material.onBeforeCompile=(s,renderer)=>{before.call(material,s,renderer);Object.assign(s.uniforms,flow.uniforms);s.vertexShader=s.vertexShader.replace('void main() {',shader+'\nvoid main() {').replace('sampleCloth(position);','sampleFlowCloth(position);');};
-  material.customProgramCacheKey=()=>key.call(material)+'-flow-tet-v2-volume-normal';
+  material.customProgramCacheKey=()=>key.call(material)+'-flow-tet-v3-temporal';
  }};rig.dispose=()=>{flow.dispose();dispose();};return rig;
 }

@@ -9,8 +9,11 @@ export function requiresFullDetail({index,active,owner,chosen,opening,hovered,pr
   return [active,owner,chosen,opening,hovered].includes(index)
     ||!Number.isFinite(projectedHeight)||projectedHeight<=0||projectedHeight>MAX_BACKGROUND_HEIGHT;
 }
-export function backgroundGeometry(full,indices){
-  if(!indices||full.attributes.position.count!==93534||full.index?.count!==400680)return full;
+export function backgroundGeometry(full,detail){
+  if(!detail)return full;
+  const record=detail.isBufferAttribute?{index:detail,vertexCount:93534,fullIndexCount:400680}:detail;
+  const indices=record.index;
+  if(!indices?.isBufferAttribute||full.attributes.position.count!==record.vertexCount||full.index?.count!==record.fullIndexCount)return full;
   let low=cache.get(full);
   if(!low){
     low=new BufferGeometry();

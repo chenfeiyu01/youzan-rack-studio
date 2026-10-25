@@ -22,12 +22,17 @@ test('failed capture restores scene visibility, clear color and render destinati
   } finally {transition.dispose();}
 });
 
-test('the scene draw hook covers both HDR captures and direct views while leaving the compositor alone',()=>{
- const destination={name:'screen'},scene=new THREE.Scene(),camera=new THREE.Camera(),neighbor=new THREE.Group(),draws=[],composites=[];scene.add(neighbor);scene.background=new THREE.Color('#252627');
+test('the selected piece stays sharp and the settled background is reused until camera or owner changes',()=>{
+ const destination={name:'screen'},scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(),neighbor=new THREE.Group(),subject=new THREE.Group(),sweep=new THREE.Group(),draws=[],composites=[];scene.add(neighbor,subject,sweep);scene.background=new THREE.Color('#e9e8e4');
  const renderer={capabilities:{maxSamples:4},target:destination,color:new THREE.Color(),alpha:1,getDrawingBufferSize(v){return v.set(128,64);},getRenderTarget(){return this.target;},setRenderTarget(t){this.target=t;},getClearAlpha(){return this.alpha;},getClearColor(c){return c.copy(this.color);},setClearColor(c,a){this.color.set(c);this.alpha=a;},render(s,c){composites.push({scene:s,camera:c,target:this.target});}};
- const transition=new FocusTransition(renderer,(s,c)=>draws.push({scene:s,camera:c,target:renderer.target,neighbor:neighbor.visible}));
- try{transition.render(scene,camera,[neighbor],.5);assert.deepEqual(draws.map(d=>d.target),[transition.rack,transition.piece]);assert.deepEqual(draws.map(d=>d.neighbor),[true,false]);assert.ok(draws.every(d=>d.scene===scene&&d.camera===camera));assert.equal(composites.length,1);assert.equal(composites[0].scene,transition.output);assert.equal(composites[0].target,destination);assert.equal(neighbor.visible,true);
-  transition.render(scene,camera,[neighbor],0);transition.render(scene,camera,[neighbor],1);assert.equal(draws.length,4);assert.equal(draws[2].target,destination);assert.equal(draws[3].target,destination);assert.equal(composites.length,1);
-  transition.prepare(scene,camera,[neighbor]);assert.equal(draws.length,7);assert.equal(draws.at(-1).target,destination);assert.equal(composites.length,2);
+ const transition=new FocusTransition(renderer,(s,c)=>draws.push({scene:s,camera:c,target:renderer.target,neighbor:neighbor.visible,subject:subject.visible,sweep:sweep.visible}),[sweep]);
+ try{
+  transition.render(scene,camera,[neighbor],.5,subject);
+  assert.deepEqual(draws.map(d=>[d.neighbor,d.subject,d.sweep]),[[true,false,true],[false,true,false]]);assert.deepEqual(draws.map(d=>d.target),[transition.rack,transition.piece]);assert.equal(composites[0].target,destination);assert.ok(neighbor.visible&&subject.visible&&sweep.visible);
+  transition.render(scene,camera,[neighbor],1,subject);assert.equal(draws.length,4);
+  transition.render(scene,camera,[neighbor],1,subject);assert.equal(draws.length,5);assert.equal(draws.at(-1).target,transition.piece,'only the sharp foreground redraws');
+  camera.position.x=.1;transition.render(scene,camera,[neighbor],1,subject);assert.equal(draws.length,7,'moving camera refreshes background');
+  transition.render(scene,camera,[subject],1,neighbor);assert.equal(draws.length,9,'new selected piece refreshes background');
+  transition.render(scene,camera,[neighbor],0,subject);assert.equal(draws.length,10);assert.equal(draws.at(-1).target,destination);
  }finally{transition.dispose();}
 });

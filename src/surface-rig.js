@@ -9,6 +9,7 @@ import {applyPrintResponse} from './print-response.js';
 import {applyClothOcclusion} from './cloth-occlusion.js';
 import {applyCollarRib} from './collar-rib.js';
 import {applyHemStitch} from './hem-stitch.js';
+import{applyFabricPattern}from'./fabric-pattern.js';
 const bindingCache=new WeakMap();
 function bindings(geometry,data,key,flow=false){
  key=(flow?'frames:':'probes:')+key;
@@ -78,35 +79,42 @@ export function createSurfaceRig(data,profile,key,options={}) {
         if(material.userData.collarRib)applyCollarRib(shader,material.userData.collarRib);
         if(material.userData.hemStitch)applyHemStitch(shader,material.userData.hemStitch);
       }
+      applyFabricPattern(shader,material);
       if(material.userData.sourceFabricMaps)applySourceFabricResponse(shader);
-    };material.customProgramCacheKey=()=> 'garment-surface-probe-v4-print-ao1'+(material.userData.collarRib?'-rib':'')+(material.userData.sourcePrintRest?'-source-print':'')+(material.userData.sourceFabricMaps?'-source-maps1':'')+(material.userData.hemStitch?'-hem':'');
+    };material.customProgramCacheKey=()=> 'garment-surface-probe-v4-print-ao1'+(material.userData.collarRib?'-rib':'')+(material.userData.sourcePrintRest?'-source-print':'')+(material.userData.sourceFabricMaps?'-source-maps1':'')+(material.userData.hemStitch?'-hem':'')+(material.userData.fabricPattern?'-pattern-'+material.userData.fabricPattern:'');
   }
   const neighbors=Array.from({length:count},()=>new Set());
   for(const c of solver.contactLinks){neighbors[c.a].add(c.b);neighbors[c.b].add(c.a);}
   const filtered=[new Float32Array(solver.offsets.length),new Float32Array(solver.offsets.length)];
+  // The recovered panels have no baked crumpling to hide. Preserve their
+  // physical curvature; the old five passes flattened short-sleeve folds.
+  const smoothingPasses=data.restSurface==='clean-pattern'?2:5;
+  const smoothingWeight=data.restSurface==='clean-pattern'?.5:.6;
   let syncedVersion=-1;
   const rig={
-    solver,texture,
+    solver,texture,simulationData:data,
     bind(mesh){const b=bindings(mesh.geometry,data,key+':'+mesh.name,Boolean(options?.flow));if(!ownedBindings.has(b)){ownedBindings.add(b);b.references++;}if(b.index)mesh.geometry.setAttribute('clothBinding',b.index);mesh.geometry.setAttribute('clothTangent',b.tangent);mesh.geometry.setAttribute('clothBitangent',b.bitangent);mesh.geometry.setAttribute('clothAO',b.ao);(Array.isArray(mesh.material)?mesh.material:[mesh.material]).forEach(m=>{m.userData.sourcePrintRest=mesh.geometry.hasAttribute('sourcePrintRest');attach(m,b);});const depth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,side:THREE.DoubleSide});depth.userData.sourcePrintRest=mesh.geometry.hasAttribute('sourcePrintRest');attach(depth,b);mesh.customDepthMaterial=depth;mesh.frustumCulled=false;},
-    update(dt,pose,reduced,preciseContacts=true){solver.preciseContacts=preciseContacts;solver.step(dt,pose,reduced);},
+    update(dt,pose,reduced,preciseContacts=true,substeps=1,layoutOffset=0){solver.preciseContacts=preciseContacts;solver.advance(dt,pose,reduced,substeps,layoutOffset);},
     suspend(){solver.initialized=false;solver.asleep=true;},
     sync(){
-      if(syncedVersion===solver.version)return;syncedVersion=solver.version;
+      // Pure layout shifts move world origins without changing local cloth.
+      const version=solver.version-solver.layoutVersion;
+      if(syncedVersion===version)return;syncedVersion=version;
       filtered[0].set(solver.offsets);
       // Transfer broad cloth motion to the detailed authored folds without
       // exposing high-frequency numerical noise from the coarse solver.
-      for(let pass=0;pass<5;pass++){
+      for(let pass=0;pass<smoothingPasses;pass++){
         const source=filtered[pass%2],target=filtered[(pass+1)%2];
         for(let node=0;node<count;node++){
           const i=node*3;if(!solver.inverseMass[node]){target[i]=target[i+1]=target[i+2]=0;continue;}
           let x=0,y=0,z=0;const adjacent=neighbors[node],size=adjacent.size;
           for(const other of adjacent){const j=other*3;x+=source[j];y+=source[j+1];z+=source[j+2];}
-          target[i]=source[i]*.40+(size?x/size:source[i])*.60;
-          target[i+1]=source[i+1]*.40+(size?y/size:source[i+1])*.60;
-          target[i+2]=source[i+2]*.40+(size?z/size:source[i+2])*.60;
+          target[i]=source[i]*(1-smoothingWeight)+(size?x/size:source[i])*smoothingWeight;
+          target[i+1]=source[i+1]*(1-smoothingWeight)+(size?y/size:source[i+1])*smoothingWeight;
+          target[i+2]=source[i+2]*(1-smoothingWeight)+(size?z/size:source[i+2])*smoothingWeight;
         }
       }
-      for(let node=0;node<count;node++)for(let k=0;k<3;k++)pixels[node*4+k]=filtered[1][node*3+k];texture.needsUpdate=true;
+      for(let node=0;node<count;node++)for(let k=0;k<3;k++)pixels[node*4+k]=filtered[smoothingPasses%2][node*3+k];texture.needsUpdate=true;
     },
     dispose(){texture.dispose();for(const b of ownedBindings)b.release();ownedBindings.clear();},
   };

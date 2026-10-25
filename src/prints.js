@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { getBrandAsset } from './brand-assets.js';
+import{getGarmentArtwork}from'./garment-artwork.js';
 
 export function makePrint(item,back=false,transparent=false) {
-  const artwork=getBrandAsset(item.print);
+  const artwork=getBrandAsset(item.print)??getGarmentArtwork(item.print);
   if(transparent&&artwork&&!back){const texture=new THREE.CanvasTexture(artwork);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=16;return texture;}
   const canvas=document.createElement('canvas');canvas.width=canvas.height=1024;
   const ctx=canvas.getContext('2d');

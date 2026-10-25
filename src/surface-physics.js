@@ -6,6 +6,7 @@ import {buildSurfaceSeams} from './surface-seams.js';
 import {SurfaceContacts} from './surface-contact.js';
 import {DihedralBending} from './surface-bending.js';
 import {SurfaceParticleGrid} from './surface-particle-grid.js';
+import {SurfaceDamping}from'./surface-damping.js';
 // XPBD on the garment's actual welded surface, rather than a rectangular cage.
 // Stretch is stiff; fold resistance, areal mass and aerodynamic drag vary by item.
 const CLOTH_ITERATIONS=5,CONTACT_REFINEMENT_ITERATIONS=4;
@@ -27,13 +28,14 @@ export class SurfaceCloth {
   constructor(data,profile={}) {
     this.rest=new Float64Array(data.positions);this.triangles=new Uint32Array(data.triangles);this.count=this.rest.length/3;
     this.position=new Float64Array(this.rest.length);this.previous=new Float64Array(this.rest.length);this.velocity=new Float64Array(this.rest.length);
-    this.target=new Float64Array(this.rest.length);this.local=new Float32Array(this.rest);this.offsets=new Float32Array(this.rest.length);this.normal=new Float32Array(this.rest.length);
+    this.target=new Float64Array(this.rest.length);this.previousTarget=new Float64Array(this.rest.length);this.local=new Float32Array(this.rest);this.offsets=new Float32Array(this.rest.length);this.normal=new Float32Array(this.rest.length);
     this.backgroundGrid=new SurfaceParticleGrid(this.count);
     this.backgroundCellOrigins=new Float64Array(this.rest.length);
     this.arealMass=new Float64Array(this.count);
     this.inverseMass=new Float64Array(this.count);this.areas=new Float64Array(this.count);this.tetherLambda=new Float64Array(this.rest.length);
-    this.profile={mass:1,drag:2.5,softness:1,asymmetry:0,friction:{static:.35,dynamic:.25},bending:{u:1.25,v:.85,mixed:1},stretch:{u:1.5e-7,v:3e-7,shear:2e-5},...profile};this.constraints=[];this.neighbors=Array.from({length:this.count},()=>new Set());
-    this.initialized=false;this.phase=0;this.asleep=false;this.lastPose=null;this.stillFrames=0;this.version=0;
+    this.profile={mass:1,drag:2.5,softness:1,asymmetry:0,shapeDamping:.18,internalDamping:12,friction:{static:.35,dynamic:.25},bending:{u:1.25,v:.85,mixed:1},stretch:{u:1.5e-7,v:3e-7,shear:2e-5},...profile};this.constraints=[];this.neighbors=Array.from({length:this.count},()=>new Set());
+    this.initialized=false;this.phase=0;this.asleep=false;this.lastPose=null;this.stillFrames=0;this.version=0;this.layoutVersion=0;
+    if(!Number.isFinite(this.profile.shapeDamping)||this.profile.shapeDamping<0)throw new RangeError('版型约束阻尼必须为有限非负值');
     const edges=new Map(),r=this.rest,t=this.triangles;
     for(let i=0;i<t.length;i+=3) {
       const a=t[i],b=t[i+1],c=t[i+2],ax=r[b*3]-r[a*3],ay=r[b*3+1]-r[a*3+1],az=r[b*3+2]-r[a*3+2],bx=r[c*3]-r[a*3],by=r[c*3+1]-r[a*3+1],bz=r[c*3+2]-r[a*3+2];
@@ -54,6 +56,7 @@ export class SurfaceCloth {
       this.inverseMass[i]=r[i*3+1]>=.55?0:1/(this.profile.mass*clamp(this.areas[i]/average,.35,3)*(1+this.profile.asymmetry*clamp(r[i*3],-1,1)));
     }
     this.aerodynamics=new SurfaceAerodynamics(data,this.areas,this.arealMass);
+    this.internalDamping=new SurfaceDamping(data);
     this.strain=new TriangleStrain(data,this.profile.stretch);
     const linked=new Set();
     const add=(a,b,compliance,bend=false)=>{
@@ -91,6 +94,32 @@ export class SurfaceCloth {
     for(let i=0;i<t.length;i+=3){const a=t[i]*3,b=t[i+1]*3,c=t[i+2]*3,ax=p[b]-p[a],ay=p[b+1]-p[a+1],az=p[b+2]-p[a+2],bx=p[c]-p[a],by=p[c+1]-p[a+1],bz=p[c+2]-p[a+2],nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;for(const j of [a,b,c]){n[j]+=nx;n[j+1]+=ny;n[j+2]+=nz;}}
     for(let i=0;i<n.length;i+=3){const len=length(n[i],n[i+1],n[i+2])||1;n[i]/=len;n[i+1]/=len;n[i+2]/=len;}
   }
+  shiftLayout(offset){
+    if(!offset||!this.initialized)return;
+    for(const field of[this.position,this.previous,this.target])for(let i=0;i<field.length;i+=3)field[i]+=offset;
+    if(this.lastPose)this.lastPose[0]+=offset;this.version++;this.layoutVersion++;
+  }
+  // Fast kinematic gestures use smaller complete XPBD steps, interpolating the
+  // carrier between them. Every constraint, contact pass and material stays on.
+  advance(dt,pose,reduced=false,substeps=1,layoutOffset=0){
+    // Horizontal rack spacing is a layout-origin change only. Do not rotate
+    // particles or velocities: hanger turns retain full world angular inertia.
+    if(layoutOffset&&!reduced)this.shiftLayout(layoutOffset);
+    if(this.initialized&&this.lastPose&&!reduced){
+      const angle=Math.max(...['yaw','roll','pitch'].map((key,i)=>Math.abs(Math.atan2(Math.sin((pose[key]??0)-this.lastPose[i+3]),Math.cos((pose[key]??0)-this.lastPose[i+3])))));
+      // Fast turns need complete small solves, not a stiff particle-following
+      // correction. Quiet cloth retains its usual 60 Hz step and material.
+      let speed=0;for(const value of this.velocity)speed=Math.max(speed,Math.abs(value));
+      substeps=Math.max(substeps,Math.min(10,Math.max(Math.ceil(angle/.010),Math.ceil(speed*dt/.025))));
+    }
+    if(substeps<=1||reduced||!this.initialized||!this.lastPose){this.step(dt,pose,reduced);return;}
+    const keys=['x','y','z','yaw','roll','pitch','scale'],defaults=[0,1.56,0,0,0,0,1],from=this.lastPose.slice(),delta=keys.map((key,i)=>(pose[key]??defaults[i])-from[i]);
+    for(const i of[3,4,5])if(Math.abs(delta[i])>Math.PI)delta[i]=Math.atan2(Math.sin(delta[i]),Math.cos(delta[i]));
+    for(let step=1;step<=substeps;step++){
+      const carrier={};for(let i=0;i<keys.length;i++)carrier[keys[i]]=from[i]+delta[i]*step/substeps;
+      this.step(dt/substeps,carrier,false);
+    }
+  }
   step(dt,pose,reduced=false) {
     const {x=0,y=1.56,z=0,yaw=0,roll=0,pitch=0,scale=1}=pose;
     const poseValues=[x,y,z,yaw,roll,pitch,scale];
@@ -99,12 +128,15 @@ export class SurfaceCloth {
     // Hidden rigs invalidate their world state. Even an unchanged pose must
     // initialize again before this cloth can participate in rack contacts.
     if(this.initialized&&this.asleep&&!changed&&!reduced){this.previous.set(this.position);return;}
-    this.asleep=false;this.version++;
+    this.asleep=false;this.version++;this.contacts.stepId=(this.contacts.stepId??0)+1;
     const cy=Math.cos(yaw),sy=Math.sin(yaw),cz=Math.cos(roll),sz=Math.sin(roll),cx=Math.cos(pitch),sx=Math.sin(pitch);
     const target=this.target,p=this.position,prev=this.previous,v=this.velocity,r=this.rest,w=this.inverseMass;
+    this.previousTarget.set(target);
     for(let i=0;i<r.length;i+=3){const rx=r[i]*scale,ry=(r[i+1]-1.58)*scale,rz=r[i+2]*scale,py=ry*cx-rz*sx,pz=ry*sx+rz*cx,qx=rx*cy+pz*sy,qz=-rx*sy+pz*cy;target[i]=x+qx*cz-py*sz;target[i+1]=y+qx*sz+py*cz;target[i+2]=z+qz;}
     if(!this.initialized||reduced){this.initialized=true;p.set(target);prev.set(target);v.fill(0);this.local.set(r);this.normal.set(this.restNormal);this.offsets.fill(0);this.asleep=reduced||(pitch===0&&roll===0);return;}
     prev.set(p);
+    for(let node=0;node<this.count;node++)if(!w[node])for(let k=0;k<3;k++){const i=node*3+k;v[i]=(target[i]-this.previousTarget[i])/dt;}
+    this.internalDamping.step(p,v,w,dt,this.profile.internalDamping);
     // Evaluate each panel in the existing world surface before prediction.
     // Nodal quadrature keeps local air work dissipative without averaging away
     // the opposing normals at a folded crease.
@@ -150,8 +182,11 @@ export class SurfaceCloth {
         if(!w[node])continue;const i=node*3;
         // The supplied mesh is an authored hanging equilibrium. A weak, compliant
         // rest-shape term retains its creases while allowing surface inertia.
-        const alpha=this.tetherBase[node]*this.profile.softness/(dt*dt);
-        for(let k=0;k<3;k++){const dl=(-(p[i+k]-target[i+k])-alpha*this.tetherLambda[i+k])/(w[node]+alpha);this.tetherLambda[i+k]+=dl;p[i+k]+=w[node]*dl;}
+        // Rayleigh damping of this compliant shape term (XPBD, Eq. 26).
+        // Use motion relative to the carrier; co-moving cloth is not damped.
+        // https://matthias-research.github.io/pages/publications/XPBD.pdf
+        const compliance=this.tetherBase[node]*this.profile.softness,alpha=compliance/(dt*dt),gamma=2*this.profile.shapeDamping*Math.sqrt(compliance/w[node])/dt;
+        for(let k=0;k<3;k++){const relativeStep=p[i+k]-prev[i+k]-(target[i+k]-this.previousTarget[i+k]),dl=(-(p[i+k]-target[i+k])-alpha*this.tetherLambda[i+k]-gamma*relativeStep)/(w[node]*(1+gamma)+alpha);this.tetherLambda[i+k]+=dl;p[i+k]+=w[node]*dl;}
         const dx=p[i]-target[i],dy=p[i+1]-target[i+1],dz=p[i+2]-target[i+2],d=length(dx,dy,dz),max=this.maxOffsetBase[node]*scale;
         if(d>max){const a=max/d;p[i]=target[i]+dx*a;p[i+1]=target[i+1]+dy*a;p[i+2]=target[i+2]+dz*a;}
       }

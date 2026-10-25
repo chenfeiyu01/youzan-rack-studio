@@ -4,11 +4,12 @@ import{studioAreaNodes as nodes,studioAreaWeights as weights}from'./studio-area-
 // Tensor Gauss-Legendre visibility. Unoccluded diffuse/GGX/coat keep their
 // existing area integrals and visibility ratios. Sheen clips to the receiver
 // horizon and interpolates the same source visibility field over that domain.
-const side=4,count=16;
+const nodeSets={4:{nodes,weights},2:{nodes:[-1/Math.sqrt(3),1/Math.sqrt(3)],weights:[1,1]}};
 const ShadowBase=new DirectionalLight().shadow.constructor;
 export class AreaAtlasShadow extends ShadowBase {
- constructor(softbox){
-  super();this.isAreaAtlasShadow=true;this.camera=new PerspectiveCamera(50,1,.5,24);this.softbox=softbox;this.sources=nodes.flatMap(y=>nodes.map(x=>new Vector3(x*softbox.width*.5,y*softbox.height*.5,0)));
+ constructor(softbox,{sampleSide=4}={}){
+  const {nodes}=nodeSets[sampleSide]??nodeSets[4],side=nodes.length,count=side*side;
+  super();this.sampleSide=side;this.isAreaAtlasShadow=true;this.camera=new PerspectiveCamera(50,1,.5,24);this.softbox=softbox;this.sources=nodes.flatMap(y=>nodes.map(x=>new Vector3(x*softbox.width*.5,y*softbox.height*.5,0)));
   this.worldSources=this.sources.map(()=>new Vector3());this.matrices=this.sources.map(()=>new Matrix4());this.center=new Vector3();this.focused=true;
   this.extents=new Vector2(side,side);this.tiles=this.sources.map((_,i)=>new Vector4(i%side,Math.floor(i/side),1,1));this.frustum=new Frustum();this.project=new Matrix4();this.point=new Vector3();
   this.mapSize.set(768,768);this.camera.near=.5;this.camera.far=24;
@@ -18,11 +19,11 @@ export class AreaAtlasShadow extends ShadowBase {
   this.bias=-.000006;this.normalBias=0;this.radius=1;
   this.uniforms={uStudioAreaMatrices:{value:this.matrices},uStudioAreaTileSize:{value:this.mapSize},uStudioAreaNormalBias:{value:.003}};
  }
- getViewportCount(){return count;}
+ getViewportCount(){return this.sources.length;}
  getViewport(i){return this.tiles[i];}
  getFrameExtents(){return this.extents;}
  getFrustum(){return this.frustum;}
- frame(center,focused){this.center.copy(center);this.focused=focused;this.softbox.updateWorldMatrix(true,false);for(let i=0;i<count;i++)this.worldSources[i].copy(this.sources[i]).applyMatrix4(this.softbox.matrixWorld);}
+ frame(center,focused){this.center.copy(center);this.focused=focused;this.softbox.updateWorldMatrix(true,false);for(let i=0;i<this.sources.length;i++)this.worldSources[i].copy(this.sources[i]).applyMatrix4(this.softbox.matrixWorld);}
  updateMatrices(_light,i=0){
   const c=this.camera=this.cameras[i];c.position.copy(this.worldSources[i]);c.lookAt(this.center);c.updateMatrixWorld(true);const bounds=this.focused?[2.7,3.3,2.7]:[6,3.4,3];
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
@@ -40,6 +41,8 @@ export class AreaAtlasShadow extends ShadowBase {
  }
 }
 function float(n){return n.toFixed(12);}
+function visibilityCode(side){
+const {nodes,weights}=nodeSets[side],count=side*side;
 const samples=Array.from({length:count},(_,i)=>`{
  vec3 delta=light.position+light.halfWidth*${float(nodes[i%side])}+light.halfHeight*${float(nodes[Math.floor(i/side)])}-p;
  float r2=max(dot(delta,delta),1.e-8);vec3 l=delta*inversesqrt(r2);
@@ -190,14 +193,19 @@ void RE_Direct_RectArea_Visibility(const in RectAreaLight light,const in vec3 p,
 #define RE_Direct_RectArea RE_Direct_RectArea_Visibility
 #endif
 `;
+return helpers;
+}
+const shaderCodes=new Map();
 export function applyStudioAreaVisibility(material,shadow){
  if(material.userData.studioAreaVisibility)return;material.userData.studioAreaVisibility=true;
- const previous=material.onBeforeCompile,key=material.customProgramCacheKey();
+ const previous=material.onBeforeCompile,key=material.customProgramCacheKey(),side=shadow.sampleSide??4;
+ if(!shaderCodes.has(side))shaderCodes.set(side,visibilityCode(side));
+ const helpers=shaderCodes.get(side);
  // The known cloth/ink pipeline keeps dielectric F0 achromatic. Do not use
  // the one-scalar path for coloured F0, maps, metal or iridescence.
  const achromatic=()=>{const c=material.specularColor;return Boolean(material.userData.clothTransmittance)&&material.metalness===0&&!material.metalnessMap&&!material.specularColorMap&&!material.iridescence&&Boolean(c)&&c.r===c.g&&c.g===c.b;};
  material.onBeforeCompile=(shader,renderer)=>{
-  previous.call(material,shader,renderer);if(achromatic())shader.fragmentShader='#define STUDIO_ACHROMATIC_SPECULAR\n'+shader.fragmentShader;if(!shader.fragmentShader.includes('RE_Direct_RectArea_Studio'))return;
+  previous.call(material,shader,renderer);if(side!==4)shader.fragmentShader='#define STUDIO_AREA_SAMPLE_SIDE '+side+'\n'+shader.fragmentShader;if(achromatic())shader.fragmentShader='#define STUDIO_ACHROMATIC_SPECULAR\n'+shader.fragmentShader;if(!shader.fragmentShader.includes('RE_Direct_RectArea_Studio'))return;
   Object.assign(shader.uniforms,shadow.uniforms);if(shadow.depthPlanes)shader.fragmentShader='#define STUDIO_CAST_DEPTH_PLANES\n'+shader.fragmentShader;
   const clothWorld=shader.fragmentShader.includes('#define STUDIO_CLOTH_TRANSMISSION');
   if(!clothWorld){shader.vertexShader='varying vec3 vStudioAreaWorld;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <worldpos_vertex>','#include <worldpos_vertex>\n vStudioAreaWorld=(modelMatrix*vec4(transformed,1.)).xyz;');}
@@ -207,5 +215,5 @@ export function applyStudioAreaVisibility(material,shadow){
   // integrals; sheen is accumulated once from the visible source samples.
   shader.fragmentShader=shader.fragmentShader.replace('rectAreaLight.color*=getShadow(directionalShadowMap[0],shadow.shadowMapSize,shadow.shadowIntensity,shadow.shadowBias,shadow.shadowRadius,vDirectionalShadowCoord[0]);','/* area visibility follows the unoccluded integral */');
  };
- material.customProgramCacheKey=()=>key+'-studio-area-visibility-v13-achromatic'+(shadow.depthPlanes?'-planes':'-packed')+(achromatic()?'-achromatic':'-colour');material.needsUpdate=true;
+ material.customProgramCacheKey=()=>key+'-studio-area-visibility-v14-samples'+side+'-achromatic'+(shadow.depthPlanes?'-planes':'-packed')+(achromatic()?'-achromatic':'-colour');material.needsUpdate=true;
 }

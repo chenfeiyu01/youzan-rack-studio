@@ -74,3 +74,22 @@ test('missing or incompatible detail data falls back to the full mesh and malfor
   for(const array of [new Uint16Array([0,1,2]),new Uint32Array(),new Uint32Array([0,1]),new Uint32Array([0,1,93534])])assert.throws(()=>detailIndex(array));
   assert.equal(applyDrawDetail({userData:{}},false),false);full.dispose();
 });
+
+test('current gravity and long sleeve assets use verified alternate indices with identical deformation attributes',async()=>{
+ const {loadGeometryAsset}=await import('./helpers/geometry-asset.js');
+ const {modelConfig}=await import('../src/model-config.js');
+ const records=JSON.parse(readFileSync(new URL('../public/models/shadow-detail/manifest.json',import.meta.url))).models;
+ for(const[type,record]of Object.entries(records)){
+  const url=new URL('../public'+modelConfig[type].url,import.meta.url);assert.equal(hash(readFileSync(url)),record.sha256);
+  const asset=await loadGeometryAsset(url);
+  for(const[name,detail]of Object.entries(record.meshes)){
+   const full=asset.scene.getObjectByName(name).geometry,bytes=readFileSync(new URL('../public/models/shadow-detail/'+detail.file,import.meta.url));
+   assert.equal(hash(bytes),detail.sha256);
+   const index=new T.BufferAttribute(new Uint32Array(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)),1);
+   full.setAttribute('clothTangent',new T.BufferAttribute(new Float32Array(full.attributes.position.count*3),3));
+   const low=backgroundGeometry(full,{...detail,index});assert.notEqual(low,full);assert.ok(low.index.count<full.index.count*.4);
+   for(const[key,value]of Object.entries(full.attributes))assert.equal(low.attributes[key],value);
+   assert.equal(backgroundGeometry(full,{...detail,index,vertexCount:detail.vertexCount+1}),full);
+  }
+ }
+});

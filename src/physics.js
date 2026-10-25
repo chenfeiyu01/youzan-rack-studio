@@ -11,8 +11,8 @@ export class Spring {
   constructor(value=0,stiffness=65,damping=9) {
     this.value=value;this.velocity=0;this.acceleration=0;this.stiffness=stiffness;this.damping=damping;
   }
-  step(target,dt,force=0) {
-    this.acceleration=this.stiffness*(target-this.value)-this.damping*this.velocity+force;
+  step(target,dt,force=0,response=1) {
+    this.acceleration=this.stiffness*response*response*(target-this.value)-this.damping*response*this.velocity+force;
     this.velocity+=this.acceleration*dt;
     this.value+=this.velocity*dt;
     return this.value;
@@ -33,19 +33,30 @@ export class HangingMotion {
     this.roll=new Spring(0,19,7);
     this.pitch=new Spring(0,22,8);
   }
-  step(x,z,yaw,dt,reduced=false,y=1.56) {
+  step(x,z,yaw,dt,reduced=false,y=1.56,hover=false,driven=false) {
     if(reduced){this.x.snap(x);this.y.snap(y);this.z.snap(z);this.yaw.snap(yaw);this.roll.snap(0);this.pitch.snap(0);return;}
     if(!Number.isFinite(dt)||dt<=0)return;
-    const slide=(spring,target,limit)=>{
+    if(driven){
+      for(const[spring,target]of[[this.x,x],[this.yaw,yaw]]){const velocity=spring.velocity;spring.velocity=(target-spring.value)/dt;spring.acceleration=(spring.velocity-velocity)/dt;spring.value=target;}
+      this.stepCarrier(x,z,yaw,dt,y,hover,true);return;
+    }
+    // Accelerate the carrier only. Cloth continues in real seconds, retaining
+    // its angular lag and free decay after this motor has reached its target.
+    for(let step=0;step<(hover?3:1);step++)this.stepCarrier(x,z,yaw,dt,y,hover);
+  }
+  stepCarrier(x,z,yaw,dt,y,hover,driven=false){
+    const slide=(spring,target,limit,response=1,accelerationLimit=Infinity)=>{
       const previous=spring.value,previousVelocity=spring.velocity;
-      spring.step(target,dt);spring.velocity=clamp(spring.velocity,-limit,limit);spring.value=previous+spring.velocity*dt;
+      spring.step(target,dt,0,response);spring.velocity=clamp(spring.velocity,-limit,limit);spring.velocity=clamp(spring.velocity,previousVelocity-accelerationLimit*dt,previousVelocity+accelerationLimit*dt);spring.value=previous+spring.velocity*dt;
       // The velocity limiter is the carrier actuator. At constant limited
       // speed its actual acceleration is zero, even if spring demand is high.
       spring.acceleration=(spring.velocity-previousVelocity)/dt;
     };
-    slide(this.x,x,this.slideLimit);slide(this.y,y,.85);slide(this.z,z,.85);
-    slide(this.yaw,yaw,this.turnLimit);
-    this.roll.step(0,dt,-clamp(this.x.acceleration,-35,35)*.045);
+    if(!driven)slide(this.x,x,this.slideLimit*(hover?3:1),hover?3:1);slide(this.y,y,.85);slide(this.z,z,.85);
+    if(!driven)slide(this.yaw,yaw,this.turnLimit,hover?1.4:1,hover?4:Infinity);
+    // Guided hover x is a layout-origin shift, also used by shiftLayout().
+    // It must not inject a physical rail-slide impulse into every hanger.
+    this.roll.step(0,dt,driven&&hover?0:-clamp(this.x.acceleration,-35,35)*.045);
     this.pitch.step(0,dt,clamp(this.z.acceleration,-20,20)*.035);
     // A rigid angular stop absorbs outward momentum. Do not retain hidden
     // velocity while the visible hanger is already resting against its limit.

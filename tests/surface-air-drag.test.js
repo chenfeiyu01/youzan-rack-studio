@@ -4,7 +4,7 @@ import {SurfaceCloth} from '../src/surface-physics.js';
 // A uniformly translating, unsupported triangle has no stretch or bending
 // force. Negligible rest-shape stiffness isolates the actual solver's air step.
 const patch={positions:[-.1,-.5,-.1,.1,-.5,-.1,0,-.5,.1],triangles:[0,1,2]};
-function moving(mass,velocity){const cloth=new SurfaceCloth(patch,{mass,drag:2.5,softness:1e12});cloth.step(1/60,{y:1.58});for(let i=0;i<3;i++)cloth.velocity.set(velocity,i*3);cloth.asleep=false;return cloth;}
+function moving(mass,velocity){const cloth=new SurfaceCloth(patch,{mass,drag:2.5,softness:1e12,shapeDamping:0});cloth.step(1/60,{y:1.58});for(let i=0;i<3;i++)cloth.velocity.set(velocity,i*3);cloth.asleep=false;return cloth;}
 const speed=s=>Math.hypot(...s.velocity.subarray(0,3));
 test('the same air load slows a lighter fabric more, with stronger resistance broadside than along the surface',()=>{
  const light=moving(.7,[0,1.2,0]),heavy=moving(1.4,[0,1.2,0]),tangent=moving(.7,[1.2,0,0]);for(const s of[light,heavy,tangent])s.step(.025,{y:1.58});

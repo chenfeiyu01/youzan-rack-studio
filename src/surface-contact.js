@@ -1,7 +1,10 @@
+import{ContactWordGrid,orderContactHits}from'./surface-contact-grid.js';
+import{contactKernelAvailable,ContactCandidateCache}from'./contact-kernel.js';
 import {initialContactExclusions} from './surface-rest-contacts.js';
 // Continuous point/triangle contact for the moving cloth surface. Both the point
 // and the three triangle vertices move during a step; their signed volume is a
 // cubic in time. Endpoint distance tests alone can miss a crossing and return.
+const NO_ROOTS=[],NO_MASK=new Uint32Array();
 const dot=(ax,ay,az,bx,by,bz)=>ax*bx+ay*by+az*bz;
 const evaluate=(c,t)=>((c[3]*t+c[2])*t+c[1])*t+c[0];
 export function cubicRoots01(c){
@@ -56,22 +59,21 @@ function contactMasks(count,triangles,edges,excluded,original){
   for(const key of original.edgePairs){const a=Math.floor(key/edgeCount),b=key%edgeCount;pairs[a*edgeWords+(b>>>5)]|=1<<(b&31);}
   return{faceWords,edgeWords,faces,pairs};
 }
-// Reuse sparse word buckets between scans; count retains array storage.
-class ContactWordGrid{
- constructor(){this.cells=new Map();this.pool=[];this.used=0;}
- reset(){this.cells.clear();this.used=0;}
- get(key){return this.cells.get(key);}
- add(key,id){let bucket=this.cells.get(key);if(!bucket){bucket=this.pool[this.used];if(!bucket)this.pool[this.used]={words:[],bits:[],count:0};bucket=this.pool[this.used++];bucket.count=0;this.cells.set(key,bucket);}const word=id>>>5,bit=1<<(id&31),last=bucket.count-1;if(last>=0&&bucket.words[last]===word)bucket.bits[last]|=bit;else{bucket.words[bucket.count]=word;bucket.bits[bucket.count++]=bit;}}
+function groupMasks(groups,indices,stride){
+  const words=Math.ceil(indices.length/stride/32),masks=new Map();
+  for(let i=0;i<indices.length/stride;i++){const group=groups[indices[i*stride]];let mask=masks.get(group);if(!mask){mask=new Uint32Array(words);masks.set(group,mask);}mask[i>>>5]|=1<<(i&31);}
+  return masks;
 }
 const shared=new WeakMap();
 export class SurfaceContacts{
-  constructor(data,inverseMass,constraints=[],friction=null){
+  constructor(data,inverseMass,constraints=[],friction=null,{compiled=true}={}){
+    this.compiledCandidates=compiled;
     if(friction&&(![friction.static,friction.dynamic].every(x=>Number.isFinite(x)&&x>=0)||friction.dynamic>friction.static))throw new RangeError('接触摩擦须满足 0 ≤ dynamic ≤ static');
-    this.friction=friction;this.previous=null;this.faceGrid=new ContactWordGrid();this.edgeGrid=new ContactWordGrid();
+    this.friction=friction;this.previous=null;this.hits=[];this.faceGrid=null;this.edgeGrid=null;
     this.rest=data.positions;this.triangles=data.triangles;this.groups=data.groups;this.thickness=data.thickness??.008;this.weights=inverseMass;this.count=this.rest.length/3;this.faceCount=this.triangles.length/3;this.faceGroups=this.groups?Array.from({length:this.faceCount},(_,i)=>this.groups[this.triangles[i*3]]):null;
     if(data.edges)this.edges=data.edges;
     else{const seen=new Set(),edges=[];for(let i=0;i<this.triangles.length;i+=3){const tri=this.triangles.slice(i,i+3);for(let k=0;k<3;k++){const a=tri[k],b=tri[(k+1)%3],key=a<b?a+':'+b:b+':'+a;if(!seen.has(key)){seen.add(key);edges.push(a,b);}}}this.edges=edges;}
-    this.edgeCount=this.edges.length/2;this.edgeActive=new Uint8Array(this.edgeCount);this.edgeStamps=new Int32Array(Math.ceil(this.edgeCount/32));this.edgeSeen=new Uint32Array(Math.ceil(this.edgeCount/32));this.edgeBounds=new Float64Array(this.edgeCount*6);this.edgeStamp=0;
+    this.edgeCount=this.edges.length/2;this.edgeActive=new Uint8Array(this.edgeCount);this.edgeStamps=new Int32Array(Math.ceil(this.edgeCount/32));this.edgeSeen=new Uint32Array(Math.ceil(this.edgeCount/32));this.edgeBounds=new Float64Array(this.edgeCount*6);this.edgeStamp=0;this.edgeGrid=new ContactWordGrid(this.edgeCount);
     if(!shared.has(data)&&this.groups){
       shared.set(data,{excluded:Array.from({length:this.count},()=>new Set()),original:{faces:Array.from({length:this.count},()=>new Set()),edgePairs:new Set()},restGaps:new Map(),edgeGaps:new Map()});
     }
@@ -81,18 +83,26 @@ export class SurfaceContacts{
       shared.set(data,{excluded,original:initialContactExclusions(data,this.edges),restGaps:new Map(),edgeGaps:new Map()});
     }
     this.shared=shared.get(data);
+    if(this.groups){this.shared.groupFaces??=groupMasks(this.groups,this.triangles,3);this.shared.groupEdges??=groupMasks(this.groups,this.edges,2);}
     if(!this.groups)this.shared.masks??=contactMasks(this.count,this.triangles,this.edges,this.shared.excluded,this.shared.original);
-    this.bounds=new Float64Array(this.faceCount*6);this.stamps=new Int32Array(Math.ceil(this.faceCount/32));this.faceSeen=new Uint32Array(Math.ceil(this.faceCount/32));this.stamp=0;this.contacts=[];this.candidateChecks=0;
+    this.bounds=new Float64Array(this.faceCount*6);this.stamps=new Int32Array(Math.ceil(this.faceCount/32));this.faceSeen=new Uint32Array(Math.ceil(this.faceCount/32));this.stamp=0;this.contacts=[];this.candidateChecks=0;this.faceActive=new Uint8Array(this.faceCount);this.faceGrid=new ContactWordGrid(this.faceCount);
   }
   solve(previous,current,scale=1,region=null){
     this.region=region;this.previous=previous;
     const triangles=this.triangles,w=this.weights,masks=this.shared.masks,grid=this.faceGrid,cell=.18*scale,thickness=this.thickness*scale,bounds=this.bounds;this.contacts=[];this.candidateChecks=0;
-    const key=(x,y,z)=>((x&1023)<<20)|((y&1023)<<10)|(z&1023);grid.reset();
+    const key=(x,y,z)=>((x&1023)<<20)|((y&1023)<<10)|(z&1023);this.faceActive.fill(0);
     for(let face=0;face<this.faceCount;face++){
       const a=triangles[face*3]*3,b=triangles[face*3+1]*3,c=triangles[face*3+2]*3,j=face*6;
       for(let axis=0;axis<3;axis++){bounds[j+axis]=Math.min(previous[a+axis],previous[b+axis],previous[c+axis],current[a+axis],current[b+axis],current[c+axis])-thickness;bounds[j+3+axis]=Math.max(previous[a+axis],previous[b+axis],previous[c+axis],current[a+axis],current[b+axis],current[c+axis])+thickness;}
       if(region&&(bounds[j]>region[3]||bounds[j+3]<region[0]||bounds[j+1]>region[4]||bounds[j+4]<region[1]||bounds[j+2]>region[5]||bounds[j+5]<region[2]))continue;
-      const cellMinX=Math.floor(bounds[j]/cell),cellMinY=Math.floor(bounds[j+1]/cell),cellMinZ=Math.floor(bounds[j+2]/cell),cellMaxX=Math.floor(bounds[j+3]/cell),cellMaxY=Math.floor(bounds[j+4]/cell),cellMaxZ=Math.floor(bounds[j+5]/cell);
+      this.faceActive[face]=1;
+    }
+    const compiledFaces=this.compiledCandidates&&contactKernelAvailable()&&!this.groups&&!region&&this.compiledFaceContacts(previous,current,scale,cell,thickness,bounds,masks);
+    if(!compiledFaces){
+    const buildFaces=this.stepId==null?(grid.reset(bounds,this.faceActive,cell),true):grid.prepare(bounds,this.faceActive,cell,this.stepId),faceCells=this.stepId==null?bounds:grid.cachedBounds;
+    if(buildFaces)for(let face=0;face<this.faceCount;face++){
+      if(!this.faceActive[face])continue;const j=face*6;
+      const cellMinX=Math.floor(faceCells[j]/cell),cellMinY=Math.floor(faceCells[j+1]/cell),cellMinZ=Math.floor(faceCells[j+2]/cell),cellMaxX=Math.floor(faceCells[j+3]/cell),cellMaxY=Math.floor(faceCells[j+4]/cell),cellMaxZ=Math.floor(faceCells[j+5]/cell);
       for(let x=cellMinX;x<=cellMaxX;x++)for(let y=cellMinY;y<=cellMaxY;y++)for(let z=cellMinZ;z<=cellMaxZ;z++){
         grid.add(key(x,y,z),face);
       }
@@ -100,14 +110,17 @@ export class SurfaceContacts{
     for(let node=0;node<this.count;node++){
       const i=node*3,minX=Math.min(previous[i],current[i])-thickness,maxX=Math.max(previous[i],current[i])+thickness,minY=Math.min(previous[i+1],current[i+1])-thickness,maxY=Math.max(previous[i+1],current[i+1])+thickness,minZ=Math.min(previous[i+2],current[i+2])-thickness,maxZ=Math.max(previous[i+2],current[i+2])+thickness;
       if(region&&(minX>region[3]||maxX<region[0]||minY>region[4]||maxY<region[1]||minZ>region[5]||maxZ<region[2]))continue;
+      const hits=this.hits;hits.length=0;
       if(++this.stamp>=2147483647){this.stamps.fill(0);this.stamp=1;}
-      const cellMinX=Math.floor(minX/cell),cellMinY=Math.floor(minY/cell),cellMinZ=Math.floor(minZ/cell),cellMaxX=Math.floor(maxX/cell),cellMaxY=Math.floor(maxY/cell),cellMaxZ=Math.floor(maxZ/cell);
+      const faceMask=masks?masks.faces:(this.shared.groupFaces.get(this.groups[node])??NO_MASK),maskBase=masks?node*masks.faceWords:0;
+      const d=grid.expansion,cellMinX=Math.floor((minX-d[0])/cell),cellMinY=Math.floor((minY-d[1])/cell),cellMinZ=Math.floor((minZ-d[2])/cell),cellMaxX=Math.floor((maxX+d[0])/cell),cellMaxY=Math.floor((maxY+d[1])/cell),cellMaxZ=Math.floor((maxZ+d[2])/cell);
       for(let x=cellMinX;x<=cellMaxX;x++)for(let y=cellMinY;y<=cellMaxY;y++)for(let z=cellMinZ;z<=cellMaxZ;z++){
         const faces=grid.get(key(x,y,z));if(!faces)continue;
         for(let block=0;block<faces.count;block++){
-          const word=faces.words[block],bits=faces.bits[block],seen=this.stamps[word]===this.stamp?this.faceSeen[word]:0;
+          const word=faces.words[block],bits=faces.bits[block]&~faceMask[maskBase+word];if(!bits)continue;
+          const seen=this.stamps[word]===this.stamp?this.faceSeen[word]:0,candidatesNew=bits&~seen;if(!candidatesNew)continue;
           this.stamps[word]=this.stamp;this.faceSeen[word]=seen|bits;
-          let candidates=bits&~seen;if(masks)candidates&=~masks.faces[node*masks.faceWords+word];
+          let candidates=candidatesNew;
           while(candidates!==0){
           const bit=candidates&-candidates,face=(word<<5)+31-Math.clz32(bit);candidates^=bit;
           if(this.groups&&this.groups[node]===this.faceGroups[face])continue;
@@ -120,11 +133,14 @@ export class SurfaceContacts{
           if(gap===undefined){gap=restDistance(this.rest,node,this.rest,a,b,c);this.shared.restGaps.set(cacheKey,gap);}
           // Authored coincident seam faces have no consistent initial side.
           // They stay under the seam constraints rather than being blown apart.
-          if(gap<.003||hit.near&&hit.distance>Math.min(thickness,gap*.4*scale)+1e-5)continue;
-          this.contacts.push({node,a,b,c,bary:hit.bary,side:hit.side,gap:Math.min(thickness,gap*.4*scale)});
+          if(gap<.003){if(masks)masks.faces[node*masks.faceWords+(face>>>5)]|=1<<(face&31);continue;}
+          if(hit.near&&hit.distance>Math.min(thickness,gap*.4*scale)+1e-5)continue;
+          const contact={node,a,b,c,bary:hit.bary,side:hit.side,gap:Math.min(thickness,gap*.4*scale)};if(grid.reused)hits.push([face,contact]);else this.contacts.push(contact);
           }
         }
       }
+      orderContactHits(hits,bounds,cell,minX,minY,minZ);for(const[,contact]of hits)this.contacts.push(contact);
+    }
     }
     this.edgeContacts(previous,current,scale);
     for(let iteration=0;iteration<2;iteration++)for(const contact of this.contacts)this.project(contact,current);
@@ -138,53 +154,58 @@ export class SurfaceContacts{
     const n1x=duy*vz-duz*vy+uy*dvz-uz*dvy,n1y=duz*vx-dux*vz+uz*dvx-ux*dvz,n1z=dux*vy-duy*vx+ux*dvy-uy*dvx;
     const n2x=duy*dvz-duz*dvy,n2y=duz*dvx-dux*dvz,n2z=dux*dvy-duy*dvx;
     const c0=dot(rx,ry,rz,n0x,n0y,n0z),n0Length=Math.sqrt(dot(n0x,n0y,n0z,n0x,n0y,n0z));if(n0Length<1e-10||Math.abs(c0)/n0Length<1e-6)return null;
-    const coefficients=[c0,dot(drx,dry,drz,n0x,n0y,n0z)+dot(rx,ry,rz,n1x,n1y,n1z),dot(drx,dry,drz,n1x,n1y,n1z)+dot(rx,ry,rz,n2x,n2y,n2z),dot(drx,dry,drz,n2x,n2y,n2z)];
+    const c1=dot(drx,dry,drz,n0x,n0y,n0z)+dot(rx,ry,rz,n1x,n1y,n1z),c2=dot(drx,dry,drz,n1x,n1y,n1z)+dot(rx,ry,rz,n2x,n2y,n2z),c3=dot(drx,dry,drz,n2x,n2y,n2z);
     // Bernstein convex-hull bound rejects all no-root intervals, including
     // cases where endpoints share a sign but an interior extremum crosses zero.
-    const b0=c0,b1=c0+coefficients[1]/3,b2=c0+2*coefficients[1]/3+coefficients[2]/3,b3=coefficients.reduce((a,b)=>a+b,0);
-    const roots=Math.min(b0,b1,b2,b3)>0||Math.max(b0,b1,b2,b3)<0?[]:cubicRoots01(coefficients);
-    for(const {t,near} of [...roots.map(t=>({t,near:false})),{t:1,near:true}]){
+    const b0=c0,b1=c0+c1/3,b2=c0+2*c1/3+c2/3,b3=((0+c0)+c1)+c2+c3;
+    const roots=Math.min(b0,b1,b2,b3)>0||Math.max(b0,b1,b2,b3)<0?NO_ROOTS:cubicRoots01([c0,c1,c2,c3]);
+    for(let candidate=0;candidate<=roots.length;candidate++){
+      const near=candidate===roots.length,t=near?1:roots[candidate];
       const ax=ux+t*dux,ay=uy+t*duy,az=uz+t*duz,bx=vx+t*dvx,by=vy+t*dvy,bz=vz+t*dvz,px=rx+t*drx,py=ry+t*dry,pz=rz+t*drz;
-      const aa=dot(ax,ay,az,ax,ay,az),ab=dot(ax,ay,az,bx,by,bz),bb=dot(bx,by,bz,bx,by,bz),pa=dot(px,py,pz,ax,ay,az),pb=dot(px,py,pz,bx,by,bz),den=aa*bb-ab*ab;if(den<1e-18)continue;
-      const u=(pa*bb-pb*ab)/den,v=(pb*aa-pa*ab)/den;const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx,distance=dot(px,py,pz,nx,ny,nz)/Math.sqrt(dot(nx,ny,nz,nx,ny,nz))*Math.sign(c0);
+      const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx,distance=dot(px,py,pz,nx,ny,nz)/Math.sqrt(dot(nx,ny,nz,nx,ny,nz))*Math.sign(c0);
       if(near&&(distance<0||distance>nearDistance))continue;
+      const aa=dot(ax,ay,az,ax,ay,az),ab=dot(ax,ay,az,bx,by,bz),bb=dot(bx,by,bz,bx,by,bz),pa=dot(px,py,pz,ax,ay,az),pb=dot(px,py,pz,bx,by,bz),den=aa*bb-ab*ab;if(den<1e-18)continue;
+      const u=(pa*bb-pb*ab)/den,v=(pb*aa-pa*ab)/den;
       if(u>=-1e-6&&v>=-1e-6&&u+v<=1+1e-6)return{bary:[1-u-v,u,v],side:Math.sign(c0),near,distance};
     }
     return null;
   }
   edgeContacts(old,p,scale){
     const edges=this.edges,bounds=this.edgeBounds,cell=.18*scale,thickness=this.thickness*scale,grid=this.edgeGrid,key=(x,y,z)=>((x&1023)<<20)|((y&1023)<<10)|(z&1023),masks=this.shared.masks,w=this.weights;
-    const region=this.region;this.edgeActive.fill(0);grid.reset();
+    const region=this.region;this.edgeActive.fill(0);
     for(let e=0;e<this.edgeCount;e++){
       const a=edges[e*2]*3,b=edges[e*2+1]*3,i=e*6;
       for(let axis=0;axis<3;axis++){bounds[i+axis]=Math.min(old[a+axis],old[b+axis],p[a+axis],p[b+axis])-thickness;bounds[i+3+axis]=Math.max(old[a+axis],old[b+axis],p[a+axis],p[b+axis])+thickness;}
       if(region&&(bounds[i]>region[3]||bounds[i+3]<region[0]||bounds[i+1]>region[4]||bounds[i+4]<region[1]||bounds[i+2]>region[5]||bounds[i+5]<region[2]))continue;
       this.edgeActive[e]=1;
-      const cellMinX=Math.floor(bounds[i]/cell),cellMinY=Math.floor(bounds[i+1]/cell),cellMinZ=Math.floor(bounds[i+2]/cell),cellMaxX=Math.floor(bounds[i+3]/cell),cellMaxY=Math.floor(bounds[i+4]/cell),cellMaxZ=Math.floor(bounds[i+5]/cell);
+    }
+    if(this.compiledCandidates&&contactKernelAvailable()&&!this.groups&&!region&&this.compiledEdgeContacts(old,p,scale,cell,thickness,bounds,masks))return;
+    const buildEdges=this.stepId==null?(grid.reset(bounds,this.edgeActive,cell),true):grid.prepare(bounds,this.edgeActive,cell,this.stepId),edgeCells=this.stepId==null?bounds:grid.cachedBounds;
+    if(buildEdges)for(let e=0;e<this.edgeCount;e++){
+      if(!this.edgeActive[e])continue;const i=e*6;
+      const cellMinX=Math.floor(edgeCells[i]/cell),cellMinY=Math.floor(edgeCells[i+1]/cell),cellMinZ=Math.floor(edgeCells[i+2]/cell),cellMaxX=Math.floor(edgeCells[i+3]/cell),cellMaxY=Math.floor(edgeCells[i+4]/cell),cellMaxZ=Math.floor(edgeCells[i+5]/cell);
       for(let x=cellMinX;x<=cellMaxX;x++)for(let y=cellMinY;y<=cellMaxY;y++)for(let z=cellMinZ;z<=cellMaxZ;z++){
         grid.add(key(x,y,z),e);
       }
     }
+    grid.beginQueries();
     for(let e=0;e<this.edgeCount;e++){
       if(!this.edgeActive[e])continue;
-      const a=edges[e*2],b=edges[e*2+1],i=e*6,firstWord=e>>>5,maskBase=masks?e*masks.edgeWords:0;
+      const a=edges[e*2],b=edges[e*2+1],i=e*6,firstWord=e>>>5,maskBase=masks?e*masks.edgeWords:0,edgeMask=masks?masks.pairs:this.shared.groupEdges.get(this.groups[a]);
+      const hits=this.hits;hits.length=0;
       if(++this.edgeStamp>=2147483647){this.edgeStamps.fill(0);this.edgeStamp=1;}
-      const cellMinX=Math.floor(bounds[i]/cell),cellMinY=Math.floor(bounds[i+1]/cell),cellMinZ=Math.floor(bounds[i+2]/cell),cellMaxX=Math.floor(bounds[i+3]/cell),cellMaxY=Math.floor(bounds[i+4]/cell),cellMaxZ=Math.floor(bounds[i+5]/cell);
+      const d=grid.expansion,cellMinX=Math.floor((bounds[i]-d[0])/cell),cellMinY=Math.floor((bounds[i+1]-d[1])/cell),cellMinZ=Math.floor((bounds[i+2]-d[2])/cell),cellMaxX=Math.floor((bounds[i+3]+d[0])/cell),cellMaxY=Math.floor((bounds[i+4]+d[1])/cell),cellMaxZ=Math.floor((bounds[i+5]+d[2])/cell);
       for(let x=cellMinX;x<=cellMaxX;x++)for(let y=cellMinY;y<=cellMaxY;y++)for(let z=cellMinZ;z<=cellMaxZ;z++){
         const list=grid.get(key(x,y,z));if(!list)continue;
         // Edges enter cells in increasing ID order. Word order and low-bit
         // enumeration therefore retain the original first-visit CCD order.
-        let first=0,last=list.count;
-        // Buckets are sorted by edge ID. Skip the prefix of earlier words
-        // without changing the first-visit order of any eligible pair.
-        if(list.words[0]<firstWord)while(first<last){const middle=(first+last)>>>1;if(list.words[middle]<firstWord)first=middle+1;else last=middle;}
+        const first=grid.firstWord(list,firstWord);
         for(let block=first;block<list.count;block++){
           const word=list.words[block];
-          const bits=list.bits[block],seen=this.edgeStamps[word]===this.edgeStamp?this.edgeSeen[word]:0;
+          let bits=list.bits[block]&~edgeMask[maskBase+word];if(word===firstWord)bits&=-2<<(e&31);if(!bits)continue;
+          const seen=this.edgeStamps[word]===this.edgeStamp?this.edgeSeen[word]:0,candidatesNew=bits&~seen;if(!candidatesNew)continue;
           this.edgeStamps[word]=this.edgeStamp;this.edgeSeen[word]=seen|bits;
-          let candidates=bits&~seen;
-          if(word===firstWord)candidates&=-2<<(e&31);
-          if(masks)candidates&=~masks.pairs[maskBase+word];
+          let candidates=candidatesNew;
           while(candidates!==0){
             const bit=candidates&-candidates,other=(word<<5)+31-Math.clz32(bit);candidates^=bit;
             if(this.groups&&this.groups[a]===this.groups[edges[other*2]])continue;
@@ -193,25 +214,74 @@ export class SurfaceContacts{
             const c=edges[other*2],d=edges[other*2+1];if(w[a]+w[b]+w[c]+w[d]===0)continue;
             this.candidateChecks++;const crossing=this.edgeCrossing(a,b,c,d,old,p,thickness*1.25);if(!crossing)continue;
             const cacheKey=e*this.edgeCount+other;let gap=this.groups?Infinity:this.shared.edgeGaps.get(cacheKey);
-            if(gap===undefined){gap=edgeDistance(this.rest,a,b,c,d);this.shared.edgeGaps.set(cacheKey,gap);}if(gap<.003||crossing.near&&crossing.distance>Math.min(thickness,gap*.4*scale)+1e-5)continue;
-            this.contacts.push({type:'edge',a,b,c,d,parameters:crossing.parameters,side:crossing.side,gap:Math.min(thickness,gap*.4*scale)});
+            if(gap===undefined){gap=edgeDistance(this.rest,a,b,c,d);this.shared.edgeGaps.set(cacheKey,gap);}
+            if(gap<.003){if(masks)masks.pairs[maskBase+(other>>>5)]|=1<<(other&31);continue;}
+            if(crossing.near&&crossing.distance>Math.min(thickness,gap*.4*scale)+1e-5)continue;
+            const contact={type:'edge',a,b,c,d,parameters:crossing.parameters,side:crossing.side,gap:Math.min(thickness,gap*.4*scale)};if(grid.reused)hits.push([other,contact]);else this.contacts.push(contact);
           }
         }
       }
+      orderContactHits(hits,bounds,cell,bounds[i],bounds[i+1],bounds[i+2]);for(const[,contact]of hits)this.contacts.push(contact);
     }
+  }
+  compiledFaceContacts(previous,current,scale,cell,thickness,bounds,masks){
+    const triangles=this.triangles,w=this.weights,queries=this.pointBounds??=new Float64Array(this.count*6),queryActive=this.pointActive??=new Uint8Array(this.count).fill(1);
+    for(let node=0;node<this.count;node++){const i=node*3,j=node*6;for(let k=0;k<3;k++){queries[j+k]=Math.min(previous[i+k],current[i+k])-thickness;queries[j+3+k]=Math.max(previous[i+k],current[i+k])+thickness;}}
+    const cache=(this.compiledFaceCache??=new ContactCandidateCache()).find(queries,queryActive,bounds,this.faceActive,cell,masks.faces,false,{previous,current,indices:this.compiledTriangles??=new Uint32Array(triangles),nearDistance:thickness*1.25});if(!cache)return false;
+    for(let node=0;node<this.count;node++){
+      if(!queryActive[node])continue;const i=node*6,minX=queries[i],minY=queries[i+1],minZ=queries[i+2],hits=this.hits;hits.length=0;
+      const faceMask=masks.faces,maskBase=node*masks.faceWords;
+      for(let pair=cache.offsets[node];pair<cache.offsets[node+1];pair++){
+        const face=cache.indices[pair];if(faceMask[maskBase+(face>>>5)]&(1<<(face&31)))continue;
+        const a=triangles[face*3],b=triangles[face*3+1],c=triangles[face*3+2];
+        if(w[node]+w[a]+w[b]+w[c]===0)continue;
+        this.candidateChecks++;
+        const hit=this.crossing(node,a,b,c,previous,current,thickness*1.25);if(!hit)continue;
+        const cacheKey=node*this.faceCount+face;let gap=this.shared.restGaps.get(cacheKey);
+        if(gap===undefined){gap=restDistance(this.rest,node,this.rest,a,b,c);this.shared.restGaps.set(cacheKey,gap);}
+        // Authored coincident seam faces have no consistent initial side.
+        // They stay under the seam constraints rather than being blown apart.
+        if(gap<.003){masks.faces[node*masks.faceWords+(face>>>5)]|=1<<(face&31);continue;}
+        if(hit.near&&hit.distance>Math.min(thickness,gap*.4*scale)+1e-5)continue;
+        const contact={node,a,b,c,bary:hit.bary,side:hit.side,gap:Math.min(thickness,gap*.4*scale)};hits.push([face,contact]);
+      }
+      orderContactHits(hits,bounds,cell,minX,minY,minZ);for(const[,contact]of hits)this.contacts.push(contact);
+    }
+    return true;
+  }
+  compiledEdgeContacts(old,p,scale,cell,thickness,bounds,masks){
+    const edges=this.edges,w=this.weights,cache=(this.compiledEdgeCache??=new ContactCandidateCache()).find(bounds,this.edgeActive,bounds,this.edgeActive,cell,masks.pairs,true,{previous:old,current:p,indices:this.compiledEdges??=new Uint32Array(edges),nearDistance:thickness*1.25});if(!cache)return false;
+    for(let e=0;e<this.edgeCount;e++){
+      if(!this.edgeActive[e])continue;
+      const a=edges[e*2],b=edges[e*2+1],i=e*6,maskBase=e*masks.edgeWords,edgeMask=masks.pairs,hits=this.hits;hits.length=0;
+      for(let pair=cache.offsets[e];pair<cache.offsets[e+1];pair++){
+        const other=cache.indices[pair];if(edgeMask[maskBase+(other>>>5)]&(1<<(other&31)))continue;
+        const c=edges[other*2],d=edges[other*2+1];if(w[a]+w[b]+w[c]+w[d]===0)continue;
+        this.candidateChecks++;const crossing=this.edgeCrossing(a,b,c,d,old,p,thickness*1.25);if(!crossing)continue;
+        const cacheKey=e*this.edgeCount+other;let gap=this.shared.edgeGaps.get(cacheKey);
+        if(gap===undefined){gap=edgeDistance(this.rest,a,b,c,d);this.shared.edgeGaps.set(cacheKey,gap);}
+        if(gap<.003){masks.pairs[maskBase+(other>>>5)]|=1<<(other&31);continue;}
+        if(crossing.near&&crossing.distance>Math.min(thickness,gap*.4*scale)+1e-5)continue;
+        const contact={type:'edge',a,b,c,d,parameters:crossing.parameters,side:crossing.side,gap:Math.min(thickness,gap*.4*scale)};hits.push([other,contact]);
+      }
+      orderContactHits(hits,bounds,cell,bounds[i],bounds[i+1],bounds[i+2]);for(const[,contact]of hits)this.contacts.push(contact);
+    }
+    return true;
   }
   edgeCrossing(a,b,c,d,old,p,nearDistance=.010){
     const i=a*3,j=b*3,k=c*3,l=d*3,rx=old[k]-old[i],ry=old[k+1]-old[i+1],rz=old[k+2]-old[i+2],ux=old[j]-old[i],uy=old[j+1]-old[i+1],uz=old[j+2]-old[i+2],vx=old[l]-old[k],vy=old[l+1]-old[k+1],vz=old[l+2]-old[k+2];
     const drx=(p[k]-p[i])-rx,dry=(p[k+1]-p[i+1])-ry,drz=(p[k+2]-p[i+2])-rz,dux=(p[j]-p[i])-ux,duy=(p[j+1]-p[i+1])-uy,duz=(p[j+2]-p[i+2])-uz,dvx=(p[l]-p[k])-vx,dvy=(p[l+1]-p[k+1])-vy,dvz=(p[l+2]-p[k+2])-vz;
     const n0x=uy*vz-uz*vy,n0y=uz*vx-ux*vz,n0z=ux*vy-uy*vx,n1x=duy*vz-duz*vy+uy*dvz-uz*dvy,n1y=duz*vx-dux*vz+uz*dvx-ux*dvz,n1z=dux*vy-duy*vx+ux*dvy-uy*dvx,n2x=duy*dvz-duz*dvy,n2y=duz*dvx-dux*dvz,n2z=dux*dvy-duy*dvx;
     const c0=dot(rx,ry,rz,n0x,n0y,n0z),length=Math.sqrt(dot(n0x,n0y,n0z,n0x,n0y,n0z));if(length<1e-10||Math.abs(c0)/length<1e-6)return null;
-    const coefficients=[c0,dot(drx,dry,drz,n0x,n0y,n0z)+dot(rx,ry,rz,n1x,n1y,n1z),dot(drx,dry,drz,n1x,n1y,n1z)+dot(rx,ry,rz,n2x,n2y,n2z),dot(drx,dry,drz,n2x,n2y,n2z)],b0=c0,b1=c0+coefficients[1]/3,b2=c0+2*coefficients[1]/3+coefficients[2]/3,b3=coefficients.reduce((a,b)=>a+b,0);
-    const roots=Math.min(b0,b1,b2,b3)>0||Math.max(b0,b1,b2,b3)<0?[]:cubicRoots01(coefficients);
-    for(const {t,near} of [...roots.map(t=>({t,near:false})),{t:1,near:true}]){
-      const ax=ux+t*dux,ay=uy+t*duy,az=uz+t*duz,bx=vx+t*dvx,by=vy+t*dvy,bz=vz+t*dvz,qx=-(rx+t*drx),qy=-(ry+t*dry),qz=-(rz+t*drz),aa=dot(ax,ay,az,ax,ay,az),bb=dot(ax,ay,az,bx,by,bz),ee=dot(bx,by,bz,bx,by,bz),cc=dot(ax,ay,az,qx,qy,qz),ff=dot(bx,by,bz,qx,qy,qz),den=aa*ee-bb*bb;
-      if(den<1e-18)continue;const u=(bb*ff-cc*ee)/den,v=(bb*u+ff)/ee;
+    const c1=dot(drx,dry,drz,n0x,n0y,n0z)+dot(rx,ry,rz,n1x,n1y,n1z),c2=dot(drx,dry,drz,n1x,n1y,n1z)+dot(rx,ry,rz,n2x,n2y,n2z),c3=dot(drx,dry,drz,n2x,n2y,n2z),b0=c0,b1=c0+c1/3,b2=c0+2*c1/3+c2/3,b3=((0+c0)+c1)+c2+c3;
+    const roots=Math.min(b0,b1,b2,b3)>0||Math.max(b0,b1,b2,b3)<0?NO_ROOTS:cubicRoots01([c0,c1,c2,c3]);
+    for(let candidate=0;candidate<=roots.length;candidate++){
+      const near=candidate===roots.length,t=near?1:roots[candidate];
+      const ax=ux+t*dux,ay=uy+t*duy,az=uz+t*duz,bx=vx+t*dvx,by=vy+t*dvy,bz=vz+t*dvz,qx=-(rx+t*drx),qy=-(ry+t*dry),qz=-(rz+t*drz);
       const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx,distance=-dot(qx,qy,qz,nx,ny,nz)/Math.sqrt(dot(nx,ny,nz,nx,ny,nz))*Math.sign(c0);
       if(near&&(distance<0||distance>nearDistance))continue;
+      const aa=dot(ax,ay,az,ax,ay,az),bb=dot(ax,ay,az,bx,by,bz),ee=dot(bx,by,bz,bx,by,bz),cc=dot(ax,ay,az,qx,qy,qz),ff=dot(bx,by,bz,qx,qy,qz),den=aa*ee-bb*bb;
+      if(den<1e-18)continue;const u=(bb*ff-cc*ee)/den,v=(bb*u+ff)/ee;
       if(u>=-1e-6&&u<=1+1e-6&&v>=-1e-6&&v<=1+1e-6)return{parameters:[u,v],side:Math.sign(c0),near,distance};
     }
     return null;

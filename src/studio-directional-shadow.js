@@ -1,7 +1,7 @@
 import{DirectionalLight,Vector3,Matrix4,Frustum,ShaderChunk,Vector2}from'three';
-// Keep the established vertical envelope; the all-yaw horizontal model bound
-// plus the existing .8 world allowance fits in 2.25, including scale1.28.
-const FOCUS_HALF_WIDTH=2.25;
+// Include the recovered short sleeves at every yaw, inspection scale 1.28,
+// shallow tailoring folds and the existing .8 world displacement allowance.
+const FOCUS_HALF_WIDTH=2.5;
 // A taller target matches the focused window. Keep search/filter reach in
 // the previous1024-grid world units while changing its sampling density.
 const ShadowBase=new DirectionalLight().shadow.constructor;

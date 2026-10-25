@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { catalog } from './catalog.js';
 import { createRackScene } from './scene.js';
 import './styles.css';
+import {getBrandAssetUrl} from './brand-assets.js';
 
 function Arrow({direction='right'}) {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d={direction==='left'?'M19 12H5m6-6-6 6 6 6':'M5 12h14m-6-6 6 6-6 6'} stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/></svg>;
@@ -33,9 +34,10 @@ function App() {
   return <main className="page">
     <section className={`showroom ${focused?'is-focused':''} ${ready?'is-ready':''}`} aria-label="有赞品牌影棚">
       <canvas ref={canvasRef} className="rack-canvas" tabIndex={0} aria-label="服装衣架：悬停展开，点击查看单品。左右方向键选款，回车查看，Esc 返回。"/>
-      {focused&&<header className="masthead">
-        <button ref={closeRef} className="icon-button close-button" aria-label="返回衣架" onClick={close}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/></svg></button>
-      </header>}
+      <header className="masthead">
+        <img className="studio-brand" src={ready?getBrandAssetUrl('wordmark'):undefined} style={{visibility:ready?'visible':'hidden'}} alt="有赞"/>
+        {focused&&<button ref={closeRef} className="icon-button close-button" aria-label="返回衣架" onClick={close}><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/></svg></button>}
+      </header>
       {!ready&&!error&&<div className="loading" role="status" aria-label="加载中"><span className="loading-line"/></div>}
       {error&&<div className="webgl-error" role="alert"><p>{error}</p><button onClick={()=>window.location.reload()}>重新加载</button></div>}
       <div className="focus-navigation" aria-hidden={!focused}><button className="round-button" onClick={()=>step(-1)} tabIndex={focused?0:-1} aria-label="上一件衣服"><Arrow direction="left"/></button><button className="round-button" onClick={()=>step(1)} tabIndex={focused?0:-1} aria-label="下一件衣服"><Arrow/></button></div>
@@ -45,6 +47,7 @@ function App() {
         <button className="icon-button rack-step" onClick={()=>step(1)} tabIndex={focused?-1:0} aria-label="选下一款"><Arrow/></button>
       </div>
       <div className="piece-caption" aria-hidden={!focused}>
+        <span className="piece-index">{String(active+1).padStart(2,'0')} / {catalog.length}</span>
         <button className="icon-button turn-button" onClick={()=>setTurned(!turned)} tabIndex={focused?0:-1} aria-label={turned?'查看正面':'转到背面'}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 7a6.5 5 0 1 1-1 5M1.5 7H5V3.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
       </div>
       <button className="credit-button" aria-label="模型署名" onClick={()=>setPanel('credits')}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" stroke="currentColor"/><path d="M10 9v5m0-8v.5" stroke="currentColor" strokeLinecap="round"/></svg></button>

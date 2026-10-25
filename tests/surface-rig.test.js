@@ -27,3 +27,23 @@ test('one neighbor traversal preserves the original per-axis Float32 smoothing e
     }finally{rig.dispose();}
   }
 });
+
+test('synchronizing only before drawing preserves every displayed deformation byte',()=>{
+ const data=JSON.parse(readFileSync(new URL('../public/models/hanging-long-sleeve-simulation.json',import.meta.url)));
+ const eager=createSurfaceRig(data,{mass:1.1,drag:1.9},'eager-sync'),onDraw=createSurfaceRig(data,{mass:1.1,drag:1.9},'draw-sync');
+ try{for(let frame=0;frame<100;frame++){
+  const pose={x:.25*Math.sin(frame/19),y:1.65,z:0,yaw:-1.43+Math.min(1,frame/55)*1.4,roll:.008*Math.sin(frame/13),pitch:.005*Math.cos(frame/11)};
+  eager.update(1/60,pose,false,true);onDraw.update(1/60,pose,false,true);eager.sync();
+  if(frame%3===0||frame===99){onDraw.sync();assert.deepEqual(onDraw.texture.image.data,eager.texture.image.data,'draw frame '+frame);assert.deepEqual(onDraw.solver.position,eager.solver.position,'unchanged physical trajectory');}
+ }}finally{eager.dispose();onDraw.dispose();}
+});
+
+
+test('pure layout translation preserves the displayed field without reuploading a sleeping rig',()=>{
+ const data=JSON.parse(readFileSync(new URL('../public/models/hanging-long-sleeve-simulation.json',import.meta.url))),rig=createSurfaceRig(data,{},'layout-cache');
+ try{
+  const pose={x:0,y:1.65,z:0,yaw:-1.43};rig.update(1/60,pose,false,true);rig.sync();const version=rig.texture.version,original=rig.texture.image.data.slice();
+  for(let frame=1;frame<=12;frame++){rig.update(1/60,{...pose,x:frame*.05},false,true,1,.05);rig.sync();assert.equal(rig.texture.version,version);assert.deepEqual(rig.texture.image.data,original);}
+  rig.update(1/60,{...pose,x:.6,yaw:-1.35},false,true);rig.sync();assert.ok(rig.texture.version>version,'real deformation must still upload');
+ }finally{rig.dispose();}
+});

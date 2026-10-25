@@ -1,7 +1,6 @@
 import {createShadowDetail,loadShadowDetails} from './shadow-detail.js';
 import * as THREE from 'three';
 import {placeGarmentModel}from'./model-space.js';
-import {applySourceFabricMaps}from'./source-fabric.js';
 import{repairClothShading}from'./cloth-shading.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
@@ -17,27 +16,19 @@ import { preloadFabricTextures,fabricRepeat } from './fabric-textures.js';
 import {collarRibCoordinates} from './collar-rib.js';
 import {hemStitchCoordinates} from './hem-stitch.js';
 import {HangerPlacement} from './hanger-placement.js';
+import{createHangerSwivel}from'./hanger-swivel.js';
 import {RACK_YAW} from './rack-layout.js';
 import {fabricPreset} from './fabric-presets.js';
-import {backgroundGeometry,detailIndex} from './draw-detail.js';
+import {backgroundGeometry} from './draw-detail.js';
+import {applyGarmentForm,garmentSimulation}from'./garment-form.js';
+import{prepareFabricPattern}from'./fabric-pattern.js';
 
 const templates = new Map(),simulations=new Map(),shadowDetails=new Map();
 const collarCache=new WeakMap();
 const hemCache=new WeakMap();
-let lowIndex=null;
-
-async function preloadDrawDetail(onWarning){
-  lowIndex=null;
-  try{
-    const response=await fetch(import.meta.env.BASE_URL+'models/short-sleeve-lod.bin');
-    if(!response.ok)throw new Error('后台服装细节加载失败');
-    lowIndex=detailIndex(new Uint32Array(await response.arrayBuffer()));
-  }catch(error){onWarning?.(error.message);}
-}
-
 export async function preloadGarments(onWarning,items) {
   const loader = new GLTFLoader();
-  await Promise.all([preloadDrawDetail(onWarning),preloadBrandAssets(),preloadFabricTextures(items?.map(item=>item.fabric??'cotton')),...Object.entries(modelConfig).map(async ([type, config]) => {
+  await Promise.all([preloadBrandAssets(),preloadFabricTextures(items?.map(item=>item.fabric??'cotton')),...Object.entries(modelConfig).map(async ([type, config]) => {
     if (!config.url) return;
     try {
       const modelResponse=await fetch(import.meta.env.BASE_URL+config.url.replace(/^\//,''));
@@ -149,7 +140,7 @@ function makeImported(item, template, geometryCache) {
     if(!o.isMesh) return;
     // Bake into one garment coordinate system so cloth and ink deform together.
     let prepared=geometryCache?.get(o.geometry);
-    const geometryKey=item.type+':'+o.name+':'+o.matrixWorld.elements.join(',');
+    const geometryKey=item.id+':'+o.name+':'+o.matrixWorld.elements.join(',');
     let geometry=prepared?.get(geometryKey);
     if(!geometry){
       geometry=o.geometry.clone().applyMatrix4(o.matrixWorld);
@@ -170,6 +161,7 @@ function makeImported(item, template, geometryCache) {
       if(!hem){hem=hemStitchCoordinates(geometry);hemCache.set(o.geometry,hem);}
       geometry.setAttribute('hemStitch',hem);
     }
+      if(config.colorMaterials.includes(o.name))applyGarmentForm(geometry,item.form,simulations.get(item.type));
       if(geometryCache){
         if(!prepared){prepared=new Map();geometryCache.set(o.geometry,prepared);}
         prepared.set(geometryKey,geometry);
@@ -181,7 +173,9 @@ function makeImported(item, template, geometryCache) {
       const family=item.fabric??'cotton';
       const mat=isFabric?cottonMaterial(item.color,item.motion,fabricRepeat(geometry,fabricPreset(family).patchMetres),family):m.name==='Hanger_Wood'?hangerWood():m.name==='Hanger_Metal'?hangerMetal():m.clone();
       mat.name=m.name;
-      if(isFabric&&o.userData.sourceFabricMaps)applySourceFabricMaps(mat,m);
+      if(isFabric)prepareFabricPattern(mat,item.pattern);
+      // Use the chosen scanned knit consistently. The imported photo normal
+      // and AO contain crumpled folds and an old print baked into the fabric.
       if(isFabric&&geometry.hasAttribute('clothDelta'))mat.userData.clothExit=true;
       // Folded trim is several layers, not a single thin sheet.
       if(isFabric&&['Fabric_Trim','Hem_Stitching'].includes(o.name))delete mat.userData.clothTransmittance;
@@ -199,7 +193,7 @@ function makeImported(item, template, geometryCache) {
     outer.add(mesh);
   });
   outer.updateMatrixWorld(true);
-  if(fabric) {
+  if(fabric&&item.print) {
     const texture=makePrint(item,false,true);
     const width=item.printWidth??.94;
     const height=Math.min(1.3,width*texture.image.height/texture.image.width);
@@ -217,13 +211,13 @@ export function createGarment(item, geometryCache) {
   const template=templates.get(item.type);
   const body=template?makeImported(item,template,geometryCache):makeProxy(item);
   if(!template)body.traverse(o=>{if(o.isMesh)o.userData.cloth=true;});
-  const rig=simulations.has(item.type)?createSurfaceRig(simulations.get(item.type),item.motion,item.type,{flow:Boolean(template?.getObjectByName('Fabric')?.userData.deformationCage)}):createClothRig(item.type==='longSleeve',item.motion);
+  const rig=simulations.has(item.type)?createSurfaceRig(garmentSimulation(simulations.get(item.type),item),item.motion,item.id,{flow:Boolean(template?.getObjectByName('Fabric')?.userData.deformationCage)}):createClothRig(item.type==='longSleeve',item.motion);
   const drawDetails=[];
   body.traverse(o=>{
     if(!o.isMesh||!o.userData.cloth)return;
     rig.bind(o);
-    if(item.type==='shortSleeve'&&o.name==='Fabric'){
-      const full=o.geometry,low=backgroundGeometry(full,lowIndex);
+    if(shadowDetails.get(item.type)?.has(o.name)){
+      const full=o.geometry,low=backgroundGeometry(full,shadowDetails.get(item.type).get(o.name));
       if(low!==full)drawDetails.push({mesh:o,full,low});
     }
   });
@@ -238,6 +232,7 @@ export function createGarment(item, geometryCache) {
   pivot.userData.hangerPlacement=HangerPlacement.fromObject(pivot);
   pivot.userData.motion=new HangingMotion(0,RACK_YAW,item.type==='longSleeve',item.motion);
   pivot.userData.motion.y.snap(pivot.userData.hangerPlacement.restY);
+  pivot.userData.swivel=createHangerSwivel(pivot,pivot.userData.motion);
   pivot.rotation.order='ZYX';
   pivot.userData.materials=[];
   pivot.traverse(o=>{

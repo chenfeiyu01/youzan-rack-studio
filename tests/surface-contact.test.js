@@ -20,3 +20,29 @@ test('a resting contact remains active on the next step without crossing the fac
 test('contact friction is bounded by the normal impulse and dissipates tangential motion',()=>{const {old,next,contacts}=setup();next[2]=-.05;contacts.solve(old,next);const v=new Float64Array([2,0,-3,0,0,0,0,0,0,0,0,0]);contacts.applyVelocities(v,next,.5);assert.ok(Math.abs(v[0]-.5)<1e-10);assert.ok(Math.abs(v[2])<1e-10);});
 test('a narrow shared region retains a swept contact on a large triangle',()=>{const {old,next,contacts}=setup();next[2]=-.05;assert.equal(contacts.solve(old,next,1,[-.01,.24,-.01,.01,.26,.01]),1);assert.ok(next[2]>=.00799);});
 test('a disjoint shared region skips unrelated faces without moving them',()=>{const {old,next,contacts}=setup();next[2]=-.05;assert.equal(contacts.solve(old,next,1,[4,4,4,5,5,5]),0);assert.equal(contacts.candidateChecks,0);assert.equal(next[2],-.05);});
+test('a particle-only collision group still collides with another group full of triangles',()=>{
+ const positions=[0,.25,.05,...triangle],data={positions,triangles:[1,2,3],groups:new Uint8Array([9,2,2,2])},contacts=new SurfaceContacts(data,new Float64Array([1,0,0,0])),old=new Float64Array(positions),next=old.slice();next[2]=-.05;
+ assert.equal(contacts.solve(old,next),1);assert.ok(next[2]>=.00799);
+});
+test('refinement reuses conservative candidates and catches a face entering a formerly empty cell',()=>{
+ const positions=[0,.25,.188,-1,0,.171,1,0,.171,0,1,.171],data={positions,triangles:[1,2,3],groups:new Uint8Array([9,2,2,2])},c=new SurfaceContacts(data,new Float64Array([1,0,0,0])),old=new Float64Array(positions),p=old.slice();c.stepId=1;
+ assert.equal(c.solve(old,p),0);assert.equal(c.faceGrid.builds,1);
+ for(const i of[5,8,11])p[i]+=.009;
+ assert.equal(c.solve(old,p),1);assert.equal(c.faceGrid.reuses,1);assert.ok(p[2]>=.18799);
+ for(const i of[5,8,11])p[i]+=.04;
+ assert.equal(c.solve(old,p),1);assert.equal(c.faceGrid.builds,2);assert.ok(p[2]>=.22799);
+ c.stepId=2;c.solve(old,p);assert.equal(c.faceGrid.builds,3);
+});
+test('a changed shared region rebuilds candidates before exposing a newly active triangle',()=>{
+ const positions=[4,.25,.05,...triangle,3,0,0,5,0,0,4,1,0],data={positions,triangles:[1,2,3,4,5,6],groups:new Uint8Array([9,2,2,2,2,2,2])},c=new SurfaceContacts(data,new Float64Array([1,0,0,0,0,0,0])),old=new Float64Array(positions),next=old.slice();c.stepId=1;
+ assert.equal(c.solve(old,next,1,[-1,-.1,-.1,1,1.1,.1]),0);next[2]=-.05;
+ assert.equal(c.solve(old,next,1,[3,-.1,-.1,5,1.1,.1]),1);assert.equal(c.faceGrid.builds,2);assert.ok(next[2]>=.00799);
+});
+test('rest-seam rejections compile into static exclusions without removing new contacts',()=>{
+ const positions=[0,.25,.001,...triangle],data={positions,triangles:[1,2,3]},old=new Float64Array(positions),next=old.slice(),c=new SurfaceContacts(data,new Float64Array([1,0,0,0]));next[2]=-.05;
+ assert.equal(c.solve(old,next),0);assert.equal(c.candidateChecks,1);assert.equal(next[2],-.05);
+ assert.equal(c.solve(old,next),0);assert.equal(c.candidateChecks,0);
+ const other=new SurfaceContacts(data,new Float64Array([.5,1,1,1]));assert.equal(other.solve(old,next),0);assert.equal(other.candidateChecks,0);
+ const edges={positions:[-1,0,.001,1,0,.001,0,-1,0,0,1,0],triangles:[],edges:[0,1,2,3]},e=new SurfaceContacts(edges,new Float64Array([1,1,1,1])),from=new Float64Array(edges.positions),to=from.slice();to[2]=to[5]=-.05;
+ assert.equal(e.solve(from,to),0);assert.equal(e.candidateChecks,1);assert.equal(e.solve(from,to),0);assert.equal(e.candidateChecks,0);
+});

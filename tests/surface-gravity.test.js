@@ -4,7 +4,7 @@ import{SurfaceCloth}from'../src/surface-physics.js';
 // world-pose transform, pin mask, drag and position/velocity reconciliation.
 const patch={positions:[-.3,.8,0,.3,.8,0,-.3,-.6,0,.3,-.6,0],triangles:[0,2,1,1,2,3]};
 function isolate(C,pose,{mass=1,drag=0}={}){
- const s=new C(patch,{mass,drag});s.step(1/60,pose);s.constraints=[];s.strain.solve=()=>{};s.bending.solve=()=>{};s.shell.solve=()=>{};s.shell.enforceOrientation=()=>0;s.contacts.solve=()=>{};s.contacts.applyVelocities=()=>{};s.tetherBase.fill(1e30);s.maxOffsetBase.fill(1e5);return s;
+ const s=new C(patch,{mass,drag,internalDamping:0});s.step(1/60,pose);s.constraints=[];s.strain.solve=()=>{};s.bending.solve=()=>{};s.shell.solve=()=>{};s.shell.enforceOrientation=()=>0;s.contacts.solve=()=>{};s.contacts.applyVelocities=()=>{};s.tetherBase.fill(1e30);s.maxOffsetBase.fill(1e5);return s;
 }
 function expected(pose){return new T.Vector3(0,9.81/.283,0).applyEuler(new T.Euler(pose.pitch??0,pose.yaw??0,pose.roll??0,'ZYX')).add(new T.Vector3(0,-9.81/.283,0));}
 function near(a,b,tol=3e-12){for(let k=0;k<a.length;k++)assert.ok(Number.isFinite(a[k])&&Math.abs(a[k]-b[k])<tol,`${k}: ${a[k]} != ${b[k]}`);}

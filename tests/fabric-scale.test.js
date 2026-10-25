@@ -48,9 +48,9 @@ test('missing or degenerate UVs have a finite fallback and calibration leaves so
  try{fabricRepeat(plane);assert.deepEqual(plane.attributes.position.array,positions);assert.deepEqual(plane.attributes.uv.array,uvs);assert.deepEqual(plane.index.array,indices);}finally{plane.dispose();}
 });
 
-test('photo cloth retains native UVs while folded long trim uses calibrated model-space UVs',async()=>{
+test('recovered short cloth and folded long trim retain calibrated fabric coordinates',async()=>{
  for(const[type,c]of Object.entries(modelConfig)){
   const asset=await loadGeometryAsset(new URL('../public'+c.url,import.meta.url));placeGarmentModel(asset.scene,c);const model=asset.scene;model.updateMatrixWorld(true);
-  let checked=false;model.traverse(o=>{if(!o.isMesh||(type==='shortSleeve'?o.name!=='Fabric':o.name!=='Fabric_Trim'))return;const geometry=o.geometry.clone().applyMatrix4(o.matrixWorld);try{const repeat=fabricRepeat(geometry);assert.ok(Number.isFinite(repeat)&&repeat>0);if(type==='shortSleeve'){assert.equal(o.userData.sourceFabricMaps,true);assert.equal(o.userData.rackCoordinates,'normalized');}else assert.ok(Math.abs(repeat/metreRatio-1)<.02,'fold UV arc lengths use model units before the physical scan repeat');checked=true;}finally{geometry.dispose();}});assert.ok(checked,type);
+  let checked=false;model.traverse(o=>{if(!o.isMesh||(type==='shortSleeve'?o.name!=='Fabric':o.name!=='Fabric_Trim'))return;const geometry=o.geometry.clone().applyMatrix4(o.matrixWorld);try{const repeat=fabricRepeat(geometry);assert.ok(Number.isFinite(repeat)&&repeat>0);if(type==='shortSleeve'){assert.equal(o.userData.sourceFabricMaps,undefined);assert.equal(o.userData.rackCoordinates,'normalized');}else assert.ok(Math.abs(repeat/metreRatio-1)<.02,'fold UV arc lengths use model units before the physical scan repeat');checked=true;}finally{geometry.dispose();}});assert.ok(checked,type);
  }
 });

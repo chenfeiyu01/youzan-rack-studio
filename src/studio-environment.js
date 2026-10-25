@@ -7,7 +7,7 @@ import {applyStudioAreaLight} from './studio-area-light.js';
 export function studioEnvironment(renderer){
   const scene=new THREE.Scene();let pmrem;
   try{
-    makeStudio(scene);scene.background=new THREE.Color('#151617');
+    makeStudio(scene);scene.background=new THREE.Color('#b9b7b2');
     scene.traverse(object=>{
       if(object.isLight)object.castShadow=false;
       if(object.isMesh)for(const material of(Array.isArray(object.material)?object.material:[object.material]))applyStudioAreaLight(material);

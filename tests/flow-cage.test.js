@@ -7,6 +7,8 @@ import {FLOW_CAGE,createFlowReference} from '../src/surface-flow-grid.js';
 import {createSurfaceRig} from '../src/surface-rig.js';
 import {HangingMotion} from '../src/physics.js';
 import {catalog} from '../src/catalog.js';
+import{modelConfig}from'../src/model-config.js';
+import{garmentSimulation}from'../src/garment-form.js';
 const data=JSON.parse(readFileSync(new URL('../public/models/short-sleeve-simulation.json',import.meta.url)));
 
 test('every displayed short-sleeve triangle lies within one affine deformation cell',async()=>{
@@ -28,14 +30,16 @@ test('every displayed short-sleeve triangle lies within one affine deformation c
 });
 
 const determinant=(a,b,c)=>a[0]*(b[1]*c[2]-b[2]*c[1])-a[1]*(b[0]*c[2]-b[2]*c[0])+a[2]*(b[0]*c[1]-b[1]*c[0]);
-test('all short-sleeve fabric profiles retain positive cage volumes during repeated reversals',t=>{
- const flow=createFlowReference(data),[nx,ny,nz]=flow.dimensions,base=flow.shared.positions,permutations=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]],cells=[];
+test('all current short-sleeve profiles retain positive cage volumes during repeated reversals',t=>{
+ const source=JSON.parse(readFileSync(new URL('../public'+modelConfig.shortSleeve.simulation,import.meta.url)));
+ const flow=createFlowReference(source),[nx,ny,nz]=flow.dimensions,base=flow.shared.positions,permutations=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]],cells=[];
  for(let z=0;z<nz-1;z++)for(let y=0;y<ny-1;y++)for(let x=0;x<nx-1;x++)for(const permutation of permutations){
   const c=[x,y,z],ids=[];for(let j=0;j<4;j++){if(j)c[permutation[j-1]]++;ids.push(c[2]*ny*nx+c[1]*nx+c[0]);}
   const points=ids.map(i=>Array.from(base.slice(i*3,i*3+3))),edges=[1,2,3].map(i=>points[i].map((v,k)=>v-points[0][k]));cells.push({ids,rest:determinant(...edges)});
  }
  let samples=0,minimumAll=Infinity,worst=null;const positions=new Float64Array(base.length);
  for(const item of catalog.filter(item=>item.type==='shortSleeve')){
+  const data=garmentSimulation(source,item),flow=createFlowReference(data);
   const rig=createSurfaceRig(data,item.motion,'cage-'+item.id,{flow:true}),motion=new HangingMotion(0,0,false,item.motion);
   try{for(let frame=0;frame<180;frame++){
    const stage=Math.floor(frame/12)%6;motion.step([0,0,.66,-.66,0,0][stage],stage===4?0:.35,[0,Math.PI,0,Math.PI,-1.43,0][stage],1/60,false,stage===4?1.56:1.94);

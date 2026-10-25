@@ -40,7 +40,7 @@ export class HangerPlacement{
  get inContactPath(){return['seated','lift','withdraw','approach','seat'].includes(this.phase);}
  scaleTarget(requested,m){return this.phase==='free'&&(m.z.value>=this.rotationZ||requested<=1.0005)?requested:1;}
  plan(m,request,scale=1,reduced=false){
-  const{wanted,y,z,yaw}=request;
+  const{wanted,y,z,yaw,returnYaw=SIDE}=request;
   if(reduced){this.wanted=wanted;this.phase=wanted?'free':'seated';return{y:wanted?y:this.restY,z:wanted?z:0,yaw:wanted?yaw:m.yaw.value+angle(SIDE,m.yaw.value),pin:!wanted};}
   if(wanted!==this.wanted){
    this.wanted=wanted;
@@ -56,7 +56,7 @@ export class HangerPlacement{
   const side=m.yaw.value+angle(SIDE,m.yaw.value);
   if(this.phase==='free'){const turning=Math.abs(angle(yaw,m.yaw.value))>.01||Math.abs(m.yaw.velocity)>.03;return{y,z:turning?Math.max(z,this.clearanceZ):z,yaw,pin:false};}
   if(this.phase==='backout')return{y:this.holdY,z:this.clearanceZ,yaw:this.holdYaw,pin:false};
-  if(this.phase==='align')return{y:this.transitY,z:this.clearanceZ,yaw:side,pin:false};
+  if(this.phase==='align')return{y:this.transitY,z:this.clearanceZ,yaw:m.yaw.value+angle(returnYaw,m.yaw.value),pin:false};
   return{y:this.phase==='seated'||this.phase==='seat'?this.restY:this.transitY,z:this.phase==='withdraw'?this.clearanceZ:0,yaw:side,pin:true};
  }
  finish(m,control){if(control.pin){m.yaw.snap(m.yaw.value+angle(SIDE,m.yaw.value));m.roll.snap(0);m.pitch.snap(0);if(m.z.value<0)m.z.snap(0);if(m.y.value<this.restY)m.y.snap(this.restY);}}

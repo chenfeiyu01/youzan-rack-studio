@@ -30,6 +30,25 @@ test('sixteen source cameras share one bounded atlas while retaining distinct pr
  }finally{dispose(s);}
 });
 
+test('the 1080p source budget keeps camera tiles, quadrature and horizon visibility in the same four-node layout',()=>{
+ const scene=new T.Scene(),s=makeStudio(scene,{areaSampleSide:2}),shadow=s.key.shadow,m=new T.MeshPhysicalMaterial({sheen:.22});
+ try{
+  assert.equal(shadow.sampleSide,2);assert.equal(shadow.getViewportCount(),4);assert.equal(shadow.matrices.length,4);
+  assert.equal(shadow.getFrameExtents().x,2);assert.equal(new Set(shadow.cameras).size,4);shadow.frame(new T.Vector3(),false);
+  for(let i=0;i<4;i++){
+   const tile=shadow.getViewport(i);assert.equal(tile.x,i%2);assert.equal(tile.y,Math.floor(i/2));shadow.updateMatrices(s.key,i);
+   const source=shadow.sources[i];assert.ok(Math.abs(Math.abs(source.x)/(s.softbox.width/2)-1/Math.sqrt(3))<1e-12);assert.ok(Math.abs(Math.abs(source.y)/(s.softbox.height/2)-1/Math.sqrt(3))<1e-12);
+   const p=new T.Vector3(.2,-.5,.3),uv=p.clone().applyMatrix4(shadow.matrices[i]);assert.ok(new T.Vector3(uv.x*2-1,uv.y*2-1,uv.z*2-1).unproject(shadow.camera).distanceTo(p)<1e-10);
+  }
+  applyStudioAreaLight(m);applyStudioAreaVisibility(m,shadow);
+  const shader={uniforms:{},vertexShader:T.ShaderLib.physical.vertexShader,fragmentShader:T.ShaderLib.physical.fragmentShader};m.onBeforeCompile(shader);
+  assert.match(shader.fragmentShader,/#define STUDIO_AREA_SAMPLE_SIDE 2/);assert.match(shader.fragmentShader,/uniform mat4 uStudioAreaMatrices\[4\]/);
+  assert.match(shader.fragmentShader,/visibility\[2\],visibility\[3\]/);assert.match(shader.fragmentShader,/x<STUDIO_AREA_SAMPLE_SIDE/);
+  assert.match(shader.fragmentShader,/RE_Direct_RectArea_Physical\(light,p,n,v,ccNormal,material,reflectedLight\)/);
+  assert.equal(shader.uniforms.uStudioAreaMatrices.value,shadow.matrices);
+ }finally{m.dispose();dispose({...s,scene});}
+});
+
 test('all finite-source cameras cover both actual garment assets across focus slots and the entire rack',async()=>{
  const s=studio(),shadow=s.key.shadow;try{
   for(const config of Object.values(modelConfig)){
