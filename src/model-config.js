@@ -4,7 +4,7 @@ export const MODEL_METRES=.283;
 // The rack, selection, and focus transitions do not depend on garment geometry.
 export const modelConfig = {
   shortSleeve: {
-    url: '/models/short-sleeve-clean.glb',
+    url: '/models/short-sleeve-web.glb',
     simulation:'/models/short-sleeve-clean-simulation.json',
     height: 2.48,
     top: .98,
@@ -16,7 +16,7 @@ export const modelConfig = {
     colorMaterials: ['Fabric', 'Hem_Stitching'],
   },
   longSleeve: {
-    url: '/models/hanging-long-sleeve.glb',
+    url: '/models/hanging-long-sleeve-web.glb',
     simulation:'/models/hanging-long-sleeve-simulation.json',
     height: 3.18,
     top: 1.58,

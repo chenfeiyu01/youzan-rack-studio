@@ -53,6 +53,7 @@ export function makeRail(scene) {
 }
 
 export async function createRackScene(canvas, items, callbacks) {
+  const loadStarted=performance.now();const loadStage=name=>{canvas.dataset.loadStage=name;canvas.dataset.loadMs=(performance.now()-loadStarted).toFixed(0);canvas.dataset['load'+name[0].toUpperCase()+name.slice(1)+'Ms']=canvas.dataset.loadMs;};loadStage('renderer');
   const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(1);
   renderer.setClearColor(0x000000,0);
@@ -68,7 +69,7 @@ export async function createRackScene(canvas, items, callbacks) {
   scene.environment=env.texture;
   const studio=makeStudio(scene,{areaSampleSide:2});
   const rail=makeRail(scene);
-  await preloadGarments(callbacks.onWarning,items);
+  loadStage('assets');await preloadGarments(callbacks.onWarning,items);loadStage('garments');
   const geometryCache=new WeakMap();
   const garments=items.map((item,i)=>{
     const mesh=createGarment(item,geometryCache);
@@ -80,18 +81,19 @@ export async function createRackScene(canvas, items, callbacks) {
     return mesh;
   });
   const garmentContacts=new GarmentContacts();
-  const clothStepper=await createClothStepper(garments.map(g=>g.userData.rig),{onWarning:message=>callbacks.onWarning?.('Parallel cloth: '+message)});
+  loadStage('workers');const clothStepper=await createClothStepper(garments.map(g=>g.userData.rig),{onWarning:message=>callbacks.onWarning?.('Parallel cloth: '+message)});
   canvas.dataset.physicsWorkers=String(clothStepper.workerCount);
   canvas.dataset.contactKernel=clothStepper.contactKernel;
-  const depthPlanes=configureStudioDepthPlanes(studio,scene,renderer,{secondary:true});
+  loadStage('shaders');const depthPlanes=configureStudioDepthPlanes(studio,scene,renderer,{secondary:true});
   const disposeShadowDetailPass=installShadowDetailPass(renderer,garments);
   canvas.dataset.shadowEncoding=depthPlanes?'caster-depth-planes':'packed-depth';
   scene.traverse(object=>{if(object.isMesh)for(const material of(Array.isArray(object.material)?object.material:[object.material])){applyStudioAreaLight(material);applyStudioAreaVisibility(material,studio.key.shadow);applyStudioDirectionalVisibility(material,studio.secondaryLights);}});
   const motions=garments.map(g=>g.userData.motion);
   const initialAnchors=motions.map(m=>({x:m.x.value,y:m.y.value,z:m.z.value,yaw:m.yaw.value,roll:m.roll.value,pitch:m.pitch.value,scale:1}));
   const displayMotion=new RenderInterpolation(initialAnchors),displayAnchor={};
-  const depthPass=createOpaqueDepthPass(renderer);
-  const transition=new FocusTransition(renderer,(scene,camera)=>depthPass.render(scene,camera),[studio.sweep]);
+  // A separate animated depth shader can disagree with the colour pass at
+  // sub-pixel depth after deformation. Draw colour and depth together.
+  const transition=new FocusTransition(renderer,(scene,camera)=>renderer.render(scene,camera),[studio.sweep]);
   let state={active:6,hovered:null,mode:'rack',turned:false};
   const presentation=new RackPresentation(state.active);
   // This hook runs before each shadow pass, after FocusTransition has chosen
@@ -299,7 +301,7 @@ export async function createRackScene(canvas, items, callbacks) {
   physicsLoop=createFixedStepLoop(advancePhysics,{onError:error=>console.error('Cloth simulation failed:',error)});
   for(const g of garments)g.userData.rig.prepare?.(renderer);
   transition.prepare(scene,camera,[...garments.filter((_,i)=>i!==presentation.owner),rail],garments[presentation.owner]);
-  readyForFrames=true;wake();
+  loadStage('ready');readyForFrames=true;wake();
   callbacks.onReady({imported:garments.filter(g=>g.userData.imported).length});
   return {
     setState(next){if(next.mode!=='focus'&&next.hovered!=null&&next.hovered!==state.hovered){hoverStarted=performance.now();hoverTimedChoice=next.hovered;hoverMeasured=false;for(const values of Object.values(hoverMetrics))values.length=0;diagnosticValues.hoverCompleteMs='';diagnosticValues.hoverPerformance='';}state={...state,...next};wake();},
@@ -318,7 +320,7 @@ export async function createRackScene(canvas, items, callbacks) {
       materials.forEach(m=>{for(const v of Object.values(m))if(v?.isTexture)textures.add(v);if(m.userData.ink)textures.add(m.userData.ink);if(m.userData.fabricPatternMap)textures.add(m.userData.fabricPatternMap);m.dispose();});
       for(const garment of garments)for(const detail of garment.userData.shadowDetail?.meshes??[])geometries.add(detail.low);
       for(const garment of garments)for(const detail of garment.userData.drawDetails??[]){geometries.add(detail.full);geometries.add(detail.low);}
-      textures.forEach(t=>t.dispose());geometries.forEach(g=>g.dispose());scene.traverse(o=>o.shadow?.dispose());transition.dispose();depthPass.dispose();env.dispose();renderer.dispose();
+      textures.forEach(t=>t.dispose());geometries.forEach(g=>g.dispose());scene.traverse(o=>o.shadow?.dispose());transition.dispose();env.dispose();renderer.dispose();
     },
   };
 }

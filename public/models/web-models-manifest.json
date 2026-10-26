@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "models": {
+    "short-sleeve-web.glb": {
+      "source": "short-sleeve-clean.glb",
+      "sourceSha256": "074360635663129fcfaae956e703d0cc189becdd7dcaa641b4ac2e32423eb316",
+      "meshes": [
+        {
+          "name": "Fabric",
+          "sourceVertices": 58122,
+          "vertices": 13496,
+          "sourceTriangles": 113231,
+          "triangles": 24613,
+          "error": 0.0029654037207365036,
+          "locked": 12627,
+          "passes": 1
+        }
+      ],
+      "bytes": 581008,
+      "gzipBytes": 464509,
+      "sha256": "a233c8fefac7f188aa1c833491673b32b05ef72a3ea27bf5f4785c3320ff9df1"
+    },
+    "hanging-long-sleeve-web.glb": {
+      "source": "hanging-long-sleeve.glb",
+      "sourceSha256": "c56b2b73dbfac171a3318afc31658ef65a7de6e07155da582b13e518c5d54ca4",
+      "meshes": [
+        {
+          "name": "Fabric",
+          "sourceVertices": 67378,
+          "vertices": 15722,
+          "sourceTriangles": 132650,
+          "triangles": 30000,
+          "error": 0.002159802010282874,
+          "locked": 9564,
+          "passes": 1
+        },
+        {
+          "name": "Fabric_Inner",
+          "sourceVertices": 66729,
+          "vertices": 13713,
+          "sourceTriangles": 131744,
+          "triangles": 26428,
+          "error": 0.0029846506658941507,
+          "locked": 9183,
+          "passes": 1
+        },
+        {
+          "name": "Fabric_Trim",
+          "sourceVertices": 8336,
+          "vertices": 8336,
+          "sourceTriangles": 15844,
+          "triangles": 15844,
+          "error": 0,
+          "locked": 0,
+          "passes": 0
+        },
+        {
+          "name": "Hanger_Metal",
+          "sourceVertices": 792,
+          "vertices": 792,
+          "sourceTriangles": 1428,
+          "triangles": 1428,
+          "error": 0,
+          "locked": 0,
+          "passes": 0
+        },
+        {
+          "name": "Hanger_Wood",
+          "sourceVertices": 2239,
+          "vertices": 2239,
+          "sourceTriangles": 3936,
+          "triangles": 3936,
+          "error": 0,
+          "locked": 0,
+          "passes": 0
+        }
+      ],
+      "bytes": 2853684,
+      "gzipBytes": 1923560,
+      "sha256": "543b8df01783fbaa7104fe4e4a22648c83c5ca75c0813177ced5ec62123ed338"
+    }
+  }
+}

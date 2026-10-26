@@ -9,19 +9,6 @@ export class ClothBatch {
     this.entries=entries;
     this.solvers=new Map(entries.map(({id,data,profile})=>[id,new SurfaceCloth(data,profile)]));
   }
-  warm(){
-    const seen=new Set();
-    for(const {data,profile} of this.entries){
-      if(seen.has(data))continue;seen.add(data);
-      // Compile the actual numerical kernels before enabling interaction.
-      // Scratch solvers never contribute state or momentum to the scene.
-      const solver=new SurfaceCloth(data,profile);
-      for(let frame=0;frame<80;frame++){
-        const t=frame/60;solver.preciseContacts=frame%20<10;
-        solver.step(1/60,{x:.1*Math.sin(t*2),y:1.56+.03*Math.sin(t),z:.1,yaw:-1.43+t,roll:.003*Math.sin(t),pitch:.002*Math.cos(t)});
-      }
-    }
-  }
   step(entries) {
     return entries.map(({id,dt,pose,reduced,preciseContacts,substeps=1,layoutOffset=0,state,patch,output})=>{
       const solver=this.solvers.get(id);
@@ -42,7 +29,7 @@ if(typeof self!=='undefined'&&typeof document==='undefined'){
   let batch;
   self.onmessage=async({data})=>{
     try{
-      if(data.type==='init'){await initializeContactKernel();batch=new ClothBatch(data.entries);batch.warm();self.postMessage({type:'ready',compiled:contactKernelAvailable()});}
+      if(data.type==='init'){await initializeContactKernel();batch=new ClothBatch(data.entries);self.postMessage({type:'ready',compiled:contactKernelAvailable()});}
       else{
         const started=performance.now();
         const entries=batch.step(data.entries);

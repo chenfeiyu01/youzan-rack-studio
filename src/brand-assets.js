@@ -1,7 +1,7 @@
 // Supplied brand artwork stays untouched on disk. Remove the image matte only
 // for compositing the ink onto fabric; the white thumb inside the red disc stays.
 const assets=new Map();
-const urls={wordmark:'youzan-wordmark.svg',round:'youzan-round.svg',mascot:'youzan-mascot.png'};
+const urls={wordmark:'youzan-wordmark.svg',round:'youzan-round.svg',mascot:'youzan-mascot-2k.webp'};
 function removeMatte(canvas,key) {
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   const image=ctx.getImageData(0,0,canvas.width,canvas.height),d=image.data,w=canvas.width,h=canvas.height;
@@ -26,9 +26,12 @@ function removeMatte(canvas,key) {
   trimmed.getContext('2d').drawImage(canvas,x0-2,y0-2,trimmed.width,trimmed.height,0,0,trimmed.width,trimmed.height);
   return trimmed;
 }
-export async function preloadBrandAssets() {
-  if(assets.size)return;
-  await Promise.all(Object.entries(urls).map(async([key,file])=>{
+export function requiredBrandAssets(prints=Object.keys(urls)) {
+  return [...new Set(['wordmark',...prints.map(key=>key==='wordmarkLight'?'wordmark':key)])].filter(key=>Object.hasOwn(urls,key));
+}
+export async function preloadBrandAssets(prints) {
+  await Promise.all(requiredBrandAssets(prints).filter(key=>!assets.has(key)).map(async key=>{
+    const file=urls[key];
     const response=await fetch(import.meta.env.BASE_URL+'brand/'+file);
     if(!response.ok)throw new Error('品牌图片加载失败');
     const blob=await response.blob();

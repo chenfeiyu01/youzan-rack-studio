@@ -4,9 +4,9 @@ import{hangingDrape}from'./garment-drape.js';
 // map is applied to visible fabric and the complete simulation mesh. Supported
 // shoulders and the rigid hanger stay in their original coordinates.
 const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-export function formPoint(x,y,z,form,out=[0,0,0],relax=null){
+export function formPoint(x,y,z,form,out=[0,0,0],relax=null,relaxedZ=null){
   if(!form||y>=.55){out[0]=x;out[1]=y;out[2]=z;return out;}
-  if(relax)z+=relax(x,y,z);
+  if(relax)z+=relaxedZ??relax(x,y,z);
   const free=smooth((.55-y)/.9),hem=smooth((-.25-y)/1.15);
   const sleeve=smooth((Math.abs(x)-.68)/.36),depth=1+((form.depth-1)+(form.sleeveEase??0)*sleeve)*free;
   out[0]=x*(1+form.width*free)+form.lean*hem;
@@ -33,7 +33,7 @@ export function applyGarmentForm(geometry,form,data){
   const relax=data?.restSurface==='clean-pattern'?hangingDrape(form):data?restRelaxation(data):null;
   const p=geometry.attributes.position,n=geometry.attributes.normal,delta=geometry.getAttribute('clothDelta'),j=new Float64Array(9),q=[0,0,0],exit=[0,0,0];
   for(let i=0;i<p.count;i++){
-    const x=p.getX(i),y=p.getY(i),z=p.getZ(i);formPoint(x,y,z,form,q,relax);
+    const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
     if(n){
       differential(x,y,z,form,j,relax);const nx=n.getX(i),ny=n.getY(i),nz=n.getZ(i);
       const a=(j[4]*j[8]-j[5]*j[7])*nx+(j[7]*j[2]-j[8]*j[1])*ny+(j[1]*j[5]-j[2]*j[4])*nz;
@@ -41,6 +41,7 @@ export function applyGarmentForm(geometry,form,data){
       const c=(j[3]*j[7]-j[4]*j[6])*nx+(j[6]*j[1]-j[7]*j[0])*ny+(j[0]*j[4]-j[1]*j[3])*nz,scale=1/(Math.hypot(a,b,c)||1);
       n.setXYZ(i,a*scale,b*scale,c*scale);
     }
+    formPoint(x,y,z,form,q,relax,n?relaxationGradient[0]:null);
     if(delta){formPoint(x+delta.getX(i),y+delta.getY(i),z+delta.getZ(i),form,exit,relax);delta.setXYZ(i,exit[0]-q[0],exit[1]-q[1],exit[2]-q[2]);}
     p.setXYZ(i,...q);
   }
@@ -76,18 +77,19 @@ function restRelaxation(data){
   // piecewise-affine simulation lattice as squares across the chest.
   // Its derivative is a convex blend of adjacent lattice differences, so
   // the same lower bound still keeps the depth mapping monotone.
-  const weights=new Float64Array(12),derivatives=new Float64Array(12),cell=new Int32Array(3),dims=[nx,ny,nz];
+  const weights=new Float64Array(12),derivatives=new Float64Array(12),cell=new Int32Array(3),dims=[nx,ny,nz],offsets=new Int32Array(12),strides=[4,nx*4,nx*ny*4];
   function sample(x,y,z,out){
-    const p=[x,y,z];
     for(let k=0;k<3;k++){
-      const q=Math.max(0,Math.min(dims[k]-1,(p[k]-ref.lo[k])/ref.step[k])),base=Math.floor(q),t=q-base,u=1-t,j=k*4;cell[k]=base-1;
+      const coordinate=k===0?x:k===1?y:z;
+      const q=Math.max(0,Math.min(dims[k]-1,(coordinate-ref.lo[k])/ref.step[k])),base=Math.floor(q),t=q-base,u=1-t,j=k*4;cell[k]=base-1;
       weights[j]=u*u*u/6;weights[j+1]=(3*t*t*t-6*t*t+4)/6;weights[j+2]=(-3*t*t*t+3*t*t+3*t+1)/6;weights[j+3]=t*t*t/6;
-      const scale=p[k]<ref.lo[k]||p[k]>ref.hi[k]?0:1/ref.step[k];
+      for(let tap=0;tap<4;tap++)offsets[j+tap]=Math.max(0,Math.min(dims[k]-1,cell[k]+tap))*strides[k];
+      const scale=coordinate<ref.lo[k]||coordinate>ref.hi[k]?0:1/ref.step[k];
       derivatives[j]=-.5*u*u*scale;derivatives[j+1]=(1.5*t*t-2*t)*scale;derivatives[j+2]=(-1.5*t*t+t+.5)*scale;derivatives[j+3]=.5*t*t*scale;
     }
     let value=0,dx=0,dy=0,dz=0;
     for(let k=0;k<4;k++)for(let j=0;j<4;j++)for(let i=0;i<4;i++){
-      const ix=Math.max(0,Math.min(nx-1,cell[0]+i)),iy=Math.max(0,Math.min(ny-1,cell[1]+j)),iz=Math.max(0,Math.min(nz-1,cell[2]+k)),v=grid[(iz*ny*nx+iy*nx+ix)*4+2]*amount,wx=weights[i],wy=weights[4+j],wz=weights[8+k];
+      const v=grid[offsets[8+k]+offsets[4+j]+offsets[i]+2]*amount,wx=weights[i],wy=weights[4+j],wz=weights[8+k];
       value+=v*wx*wy*wz;if(out){dx+=v*derivatives[i]*wy*wz;dy+=v*wx*derivatives[4+j]*wz;dz+=v*wx*wy*derivatives[8+k];}
     }
     if(out){out[0]=value;out[1]=dx;out[2]=dy;out[3]=dz;}return value;

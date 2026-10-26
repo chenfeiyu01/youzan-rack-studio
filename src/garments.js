@@ -1,3 +1,4 @@
+import {loadAssetBytes} from './asset-loader.js';
 import {createShadowDetail,loadShadowDetails} from './shadow-detail.js';
 import * as THREE from 'three';
 import {placeGarmentModel}from'./model-space.js';
@@ -28,16 +29,20 @@ const collarCache=new WeakMap();
 const hemCache=new WeakMap();
 export async function preloadGarments(onWarning,items) {
   const loader = new GLTFLoader();
-  await Promise.all([preloadBrandAssets(),preloadFabricTextures(items?.map(item=>item.fabric??'cotton')),...Object.entries(modelConfig).map(async ([type, config]) => {
+  await Promise.all([preloadBrandAssets(items?.map(item=>item.print)),preloadFabricTextures(items?.map(item=>item.fabric??'cotton')),...Object.entries(modelConfig).map(async ([type, config]) => {
     if (!config.url) return;
     try {
-      const modelResponse=await fetch(import.meta.env.BASE_URL+config.url.replace(/^\//,''));
-      if(!modelResponse.ok)throw new Error('服装模型加载失败');
-      const modelBytes=await modelResponse.arrayBuffer(),asset=await loader.parseAsync(modelBytes,'');
-      shadowDetails.set(type,await loadShadowDetails(type,modelBytes,onWarning));
-      const response=await fetch(import.meta.env.BASE_URL+config.simulation.replace(/^\//,''));
-      if(!response.ok)throw new Error('布料模拟数据加载失败');
-      simulations.set(type,await response.json());
+      const base=import.meta.env.BASE_URL;
+      // Simulation is independent of the render model and its shadow indices.
+      const [modelBytes,simulationBytes]=await Promise.all([
+        loadAssetBytes(base+config.url.replace(/^\//,'')),
+        loadAssetBytes(base+config.simulation.replace(/^\//,'')),
+      ]);
+      const [asset,details]=await Promise.all([
+        loader.parseAsync(modelBytes,''),loadShadowDetails(type,modelBytes,onWarning),
+      ]);
+      shadowDetails.set(type,details);
+      simulations.set(type,JSON.parse(new TextDecoder().decode(simulationBytes)));
       templates.set(type, asset.scene);
     } catch (error) {
       onWarning?.(`${type}: ${error.message}`);
